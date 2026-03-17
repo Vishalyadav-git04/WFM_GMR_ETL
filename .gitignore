@@ -1,0 +1,33 @@
+# ── Environment & Secrets ────────────────────────────────────────────────
+.env
+
+# ── Python ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+
+# ── Data Folder ────────────────────────────────────────────────────────
+data/input/
+data/output/
+
+# ── IDE & Editor ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Logs & Temporary Files ─────────────────────────────────────────────
+*.log
+tmp/
+*.tmp
+audit_*.py
+check_*.py
+verify_*.py
+list_*.py
+search_*.py
+tmp_*.py
+final_*.py
