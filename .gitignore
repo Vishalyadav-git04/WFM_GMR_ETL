@@ -31,3 +31,13 @@ list_*.py
 search_*.py
 tmp_*.py
 final_*.py
+
+# Backups and temp dirs
+*.zip
+temp_backend*/
+schema_check.py
+.claude/
+.cursor/
+.mcp.json
+.opencode.json
+*.md
