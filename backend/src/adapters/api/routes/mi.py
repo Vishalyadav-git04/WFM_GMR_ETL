@@ -9,7 +9,7 @@ from adapters.api.schemas import (
     MonthlyProductivityOut, MonthlyProductivitySummaryOut,
     InventoryUtilizationOut, InventoryUtilizationSummaryOut,
     StockAgeingOut, MIvsSATOut, MIvsSATSummaryOut,
-    MINonSATAgeingOut,
+    MINonSATAgeingOut, MeterJourneyOut, MeterStageOut,
 )
 
 router = APIRouter(prefix="/api/mi", tags=["MI KPIs"])
@@ -261,3 +261,35 @@ def get_non_sat_ageing(
     filters = locals()
     filters.pop("mi_usecase")
     return mi_usecase.get_non_sat_ageing(filters, limit, offset)
+
+@router.get("/meter-journey", response_model=List[MeterJourneyOut], summary="Get Meter Journey Avg Time")
+def get_meter_journey(
+    project: Optional[str] = None,
+    limit: int = Query(100),
+    offset: int = Query(0),
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    return mi_usecase.get_meter_journey(filters, limit, offset)
+
+@router.get("/meter-stage", response_model=List[MeterStageOut], summary="Get Meter Current Stage Distribution")
+def get_meter_stage(
+    project: Optional[str] = None,
+    limit: int = Query(100),
+    offset: int = Query(0),
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    return mi_usecase.get_meter_stage(filters, limit, offset)
+
+@router.get("/command-center/{region}", summary="Get Command Center Dashboard Snapshot")
+def get_command_center_dashboard(
+    region: str,
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    """
+    Returns the comprehensive Command Center Dashboard data structure for a given region (kashi, agra, triveni).
+    """
+    return mi_usecase.get_command_center_dashboard(region)

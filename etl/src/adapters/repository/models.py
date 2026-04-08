@@ -107,6 +107,70 @@ class NonSATAgeing(MIDimensionMixin, Base):
     installation_date = Column(Date)
     ageing_days = Column(Integer)
 
+# ── Command Center Dashboard Tables ───────────────────────────────────────
+
+class DashboardCommandCenter(Base):
+    __tablename__ = "dashboard_command_center"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    inventory = Column(BigInteger)
+    installed = Column(BigInteger)
+    total_sat = Column(BigInteger)
+    total_invoice = Column(BigInteger)
+    sat_1_eligibility = Column(BigInteger)
+    sat_2_eligibility = Column(BigInteger)
+    sat_3_eligibility = Column(BigInteger)
+    sat_4_eligibility = Column(BigInteger)
+    sat_5_eligibility = Column(BigInteger)
+    sat_6_eligibility = Column(BigInteger)
+    sat_7_eligibility = Column(BigInteger)
+    sat_8_eligibility = Column(BigInteger, default=0)
+    sat_1_achievement = Column(BigInteger)
+    sat_2_achievement = Column(BigInteger)
+    sat_3_achievement = Column(BigInteger)
+    sat_4_achievement = Column(BigInteger)
+    sat_5_achievement = Column(BigInteger)
+    sat_6_achievement = Column(BigInteger)
+    sat_7_achievement = Column(BigInteger)
+    sat_8_achievement = Column(BigInteger, default=0)
+    sat_1_throughput_pct = Column(Float)
+    sat_2_throughput_pct = Column(Float)
+    sat_3_throughput_pct = Column(Float)
+    sat_4_throughput_pct = Column(Float)
+    sat_5_throughput_pct = Column(Float)
+    sat_6_throughput_pct = Column(Float)
+    sat_7_throughput_pct = Column(Float)
+    sat_8_throughput_pct = Column(Float, default=0)
+
+
+class DashboardCommandCenterTrend(Base):
+    __tablename__ = "dashboard_command_center_trend"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    period_type = Column(String(20))
+    period_value = Column(String(50))
+    inventory_added = Column(BigInteger)
+    installed_added = Column(BigInteger)
+    s1_added = Column(BigInteger)
+    s2_added = Column(BigInteger)
+    s3_added = Column(BigInteger)
+    s4_added = Column(BigInteger)
+    s5_added = Column(BigInteger)
+    s6_added = Column(BigInteger)
+    s7_added = Column(BigInteger)
+    s8_added = Column(BigInteger, default=0)
+
+class DashboardCommandCenterMilestone(Base):
+    __tablename__ = "dashboard_command_center_milestone"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    stage = Column(String(20))
+    start_date = Column(Date)
+    lumpsum_inv_date = Column(Date)
+    pmpm_inv_date = Column(Date)
+    lumpsum_col_date = Column(Date)
+    pmpm_col_date = Column(Date)
+
 
 # ── O&M KPI Tables ─────────────────────────────────────────────────────
 

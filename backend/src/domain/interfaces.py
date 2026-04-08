@@ -47,6 +47,15 @@ class IMIRepository(ABC):
     @abstractmethod
     def get_non_sat_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
 
+    @abstractmethod
+    def get_meter_journey(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
+
+    @abstractmethod
+    def get_meter_stage(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
+
+    @abstractmethod
+    def get_command_center_dashboard(self, project: str) -> Dict[str, Any]: pass
+
 class IOMRepository(ABC):
     @abstractmethod
     def save_productivity_team(self, items: List[OMProductivityTeamEntity]): pass

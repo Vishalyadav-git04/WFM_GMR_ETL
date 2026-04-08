@@ -1,0 +1,134 @@
+"""
+SQLAlchemy ORM models for the parallel (Shadow) KPI result tables.
+These tables prefix the original table names with `sql_` to allow
+pure SQL push-down logic to be safely tested alongside the original tables.
+"""
+
+from sqlalchemy import Column, Integer, BigInteger, Float, String, Date, DateTime
+from .models import Base, MIDimensionMixin, OMDimensionMixin
+
+# ── MI KPI Tables (Shadow) ───────────────────────────────────────────────────────
+
+class SqlMIProgress(MIDimensionMixin, Base):
+    __tablename__ = "sql_mi_progress"
+    period_type = Column(String(10))   # daily / weekly / monthly
+    period_value = Column(String(50))  # the date or week/month string
+    total_mi_progress = Column(BigInteger)
+
+
+class SqlMIProductivity(MIDimensionMixin, Base):
+    __tablename__ = "sql_mi_productivity"
+    technician = Column(String(200))
+    period_type = Column(String(10))   # daily / weekly / monthly
+    period_value = Column(String(50))  # the date or week/month string
+    daily_installations = Column(BigInteger)
+
+
+class SqlMonthlyProductivity(MIDimensionMixin, Base):
+    __tablename__ = "sql_monthly_productivity"
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the month string
+    location_monthly_installations = Column(BigInteger)
+    total_monthly_installations = Column(BigInteger)
+
+
+class SqlInventoryUtilization(MIDimensionMixin, Base):
+    __tablename__ = "sql_inventory_utilization"
+    period_type = Column(String(10))   # daily(KPI5) / weekly / monthly
+    period_value = Column(String(50))  # the date or week/month string
+    total_inventory = Column(BigInteger)
+    total_installed = Column(BigInteger)
+    utilization_rate_pct = Column(Float)
+    remaining_stock = Column(BigInteger)
+
+
+class SqlStockAgeing(Base):
+    __tablename__ = "sql_stock_ageing"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    meter_serial_number = Column(String(100))
+    di_date = Column(Date)
+    installed_ts = Column(Date)
+    ageing_days = Column(Integer)
+
+
+class SqlMIvsSAT(MIDimensionMixin, Base):
+    __tablename__ = "sql_mi_vs_sat"
+    period_type = Column(String(10))   # daily
+    period_value = Column(String(50))  # the date
+    total_mi = Column(BigInteger)
+    total_sat = Column(BigInteger)
+    sat_1 = Column(BigInteger, default=0)
+    sat_2 = Column(BigInteger, default=0)
+    sat_3 = Column(BigInteger, default=0)
+    sat_4 = Column(BigInteger, default=0)
+    sat_5 = Column(BigInteger, default=0)
+    sat_6 = Column(BigInteger, default=0)
+    sat_7 = Column(BigInteger, default=0)
+    sat_progress_pct = Column(Float)
+
+
+class SqlNonSATAgeing(MIDimensionMixin, Base):
+    __tablename__ = "sql_non_sat_ageing"
+    meter_serial_number = Column(String(100))
+    installation_date = Column(Date)
+    ageing_days = Column(Integer)
+
+
+class SqlMeterJourneyAvgTime(MIDimensionMixin, Base):
+    __tablename__ = "sql_meter_journey_avg_time"
+    di_to_gmr = Column(Float)
+    gmr_to_agency = Column(Float)
+    agency_to_sup = Column(Float)
+    sup_to_install = Column(Float)
+    install_to_sat = Column(Float)
+    sat_to_revenue = Column(Float)
+    total_journey = Column(Float)
+
+
+class SqlMeterCurrentStage(MIDimensionMixin, Base):
+    __tablename__ = "sql_meter_current_stage"
+    current_stage = Column(String(100))
+    meter_count = Column(BigInteger)
+
+
+# ── O&M KPI Tables (Shadow) ─────────────────────────────────────────────────────
+
+class SqlOMProductivityTeam(OMDimensionMixin, Base):
+    __tablename__ = "sql_om_productivity_team"
+    technician = Column(String(200))
+    agency = Column(String(200))
+    period_type = Column(String(10))   # daily / weekly / monthly
+    period_value = Column(String(50))  # the date or month string
+    closed_tickets = Column(BigInteger)
+
+
+class SqlOMProductivityTrend(OMDimensionMixin, Base):
+    __tablename__ = "sql_om_productivity_trend"
+    closed_month = Column(String(20))
+    total_closed_tickets = Column(BigInteger)
+
+
+class SqlOMOpenAgeing(OMDimensionMixin, Base):
+    __tablename__ = "sql_om_open_ageing"
+    ticket_id = Column(String(100))
+    created_date = Column(DateTime)
+    ageing_days = Column(Float)
+    technician = Column(String(200))
+    agency = Column(String(200))
+
+
+class SqlOMAvgClosureTime(OMDimensionMixin, Base):
+    __tablename__ = "sql_om_avg_closure_time"
+    period_type = Column(String(10))
+    period_value_created = Column(String(50))
+    period_value_closed = Column(String(50))
+    avg_resolution_days = Column(Float)
+
+
+class SqlOMClosedAnalysis(OMDimensionMixin, Base):
+    __tablename__ = "sql_om_closed_analysis"
+    complaint_type = Column(String(200))
+    complaint_category = Column(String(200))
+    period_type = Column(String(10))
+    period_value = Column(String(50))
+    closed_tickets = Column(BigInteger)

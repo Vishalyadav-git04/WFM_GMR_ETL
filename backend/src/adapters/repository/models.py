@@ -44,14 +44,14 @@ class OMDimensionMixin:
 # ── MI KPI Tables ───────────────────────────────────────────────────────
 
 class MIProgress(MIDimensionMixin, Base):
-    __tablename__ = "mi_progress"
+    __tablename__ = "sql_mi_progress"
     period_type = Column(String(10))   # daily / weekly / monthly
     period_value = Column(String(50))  # the date or week/month string
     total_mi_progress = Column(BigInteger)
 
 
 class MIProductivity(MIDimensionMixin, Base):
-    __tablename__ = "mi_productivity"
+    __tablename__ = "sql_mi_productivity"
     technician = Column(String(200))
     period_type = Column(String(10))   # daily / weekly / monthly
     period_value = Column(String(50))  # the date or week/month string
@@ -59,7 +59,7 @@ class MIProductivity(MIDimensionMixin, Base):
 
 
 class MonthlyProductivity(MIDimensionMixin, Base):
-    __tablename__ = "monthly_productivity"
+    __tablename__ = "sql_monthly_productivity"
     period_type = Column(String(10))   # monthly
     period_value = Column(String(50))  # the month string
     location_monthly_installations = Column(BigInteger)
@@ -67,7 +67,7 @@ class MonthlyProductivity(MIDimensionMixin, Base):
 
 
 class InventoryUtilization(MIDimensionMixin, Base):
-    __tablename__ = "inventory_utilization"
+    __tablename__ = "sql_inventory_utilization"
     period_type = Column(String(10))   # daily(KPI5) / weekly / monthly
     period_value = Column(String(50))  # the date or week/month string
     total_inventory = Column(BigInteger)
@@ -77,7 +77,7 @@ class InventoryUtilization(MIDimensionMixin, Base):
 
 
 class StockAgeing(Base):
-    __tablename__ = "stock_ageing"
+    __tablename__ = "sql_stock_ageing"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     meter_serial_number = Column(String(100))
     di_date = Column(Date)
@@ -86,7 +86,7 @@ class StockAgeing(Base):
 
 
 class MIvsSAT(MIDimensionMixin, Base):
-    __tablename__ = "mi_vs_sat"
+    __tablename__ = "sql_mi_vs_sat"
     period_type = Column(String(10))   # daily
     period_value = Column(String(50))  # the date
     total_mi = Column(BigInteger)
@@ -102,16 +102,98 @@ class MIvsSAT(MIDimensionMixin, Base):
 
 
 class NonSATAgeing(MIDimensionMixin, Base):
-    __tablename__ = "non_sat_ageing"
+    __tablename__ = "sql_non_sat_ageing"
     meter_serial_number = Column(String(100))
     installation_date = Column(Date)
     ageing_days = Column(Integer)
 
 
+class MeterJourneyAvgTime(MIDimensionMixin, Base):
+    __tablename__ = "sql_meter_journey_avg_time"
+    di_to_gmr = Column(Float)
+    gmr_to_agency = Column(Float)
+    agency_to_sup = Column(Float)
+    sup_to_install = Column(Float)
+    install_to_sat = Column(Float)
+    sat_to_revenue = Column(Float)
+    total_journey = Column(Float)
+
+
+class MeterCurrentStage(MIDimensionMixin, Base):
+    __tablename__ = "sql_meter_current_stage"
+    current_stage = Column(String(100))
+    meter_count = Column(BigInteger)
+
+
+# ── Command Center Dashboard Tables ───────────────────────────────────────
+
+class DashboardCommandCenter(Base):
+    __tablename__ = "dashboard_command_center"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    inventory = Column(BigInteger)
+    installed = Column(BigInteger)
+    total_sat = Column(BigInteger)
+    total_invoice = Column(BigInteger)
+    sat_1_eligibility = Column(BigInteger)
+    sat_2_eligibility = Column(BigInteger)
+    sat_3_eligibility = Column(BigInteger)
+    sat_4_eligibility = Column(BigInteger)
+    sat_5_eligibility = Column(BigInteger)
+    sat_6_eligibility = Column(BigInteger)
+    sat_7_eligibility = Column(BigInteger)
+    sat_8_eligibility = Column(BigInteger, default=0)
+    sat_1_achievement = Column(BigInteger)
+    sat_2_achievement = Column(BigInteger)
+    sat_3_achievement = Column(BigInteger)
+    sat_4_achievement = Column(BigInteger)
+    sat_5_achievement = Column(BigInteger)
+    sat_6_achievement = Column(BigInteger)
+    sat_7_achievement = Column(BigInteger)
+    sat_8_achievement = Column(BigInteger, default=0)
+    sat_1_throughput_pct = Column(Float)
+    sat_2_throughput_pct = Column(Float)
+    sat_3_throughput_pct = Column(Float)
+    sat_4_throughput_pct = Column(Float)
+    sat_5_throughput_pct = Column(Float)
+    sat_6_throughput_pct = Column(Float)
+    sat_7_throughput_pct = Column(Float)
+    sat_8_throughput_pct = Column(Float, default=0)
+
+
+class DashboardCommandCenterTrend(Base):
+    __tablename__ = "dashboard_command_center_trend"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    period_type = Column(String(20))
+    period_value = Column(String(50))
+    inventory_added = Column(BigInteger)
+    installed_added = Column(BigInteger)
+    s1_added = Column(BigInteger)
+    s2_added = Column(BigInteger)
+    s3_added = Column(BigInteger)
+    s4_added = Column(BigInteger)
+    s5_added = Column(BigInteger)
+    s6_added = Column(BigInteger)
+    s7_added = Column(BigInteger)
+    s8_added = Column(BigInteger, default=0)
+
+class DashboardCommandCenterMilestone(Base):
+    __tablename__ = "dashboard_command_center_milestone"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    stage = Column(String(20))
+    start_date = Column(Date)
+    lumpsum_inv_date = Column(Date)
+    pmpm_inv_date = Column(Date)
+    lumpsum_col_date = Column(Date)
+    pmpm_col_date = Column(Date)
+
+
 # ── O&M KPI Tables ─────────────────────────────────────────────────────
 
 class OMProductivityTeam(OMDimensionMixin, Base):
-    __tablename__ = "om_productivity_team"
+    __tablename__ = "sql_om_productivity_team"
     technician = Column(String(200))
     agency = Column(String(200))
     period_type = Column(String(10))   # daily / weekly / monthly
@@ -120,13 +202,13 @@ class OMProductivityTeam(OMDimensionMixin, Base):
 
 
 class OMProductivityTrend(OMDimensionMixin, Base):
-    __tablename__ = "om_productivity_trend"
+    __tablename__ = "sql_om_productivity_trend"
     closed_month = Column(String(20))
     total_closed_tickets = Column(BigInteger)
 
 
 class OMOpenAgeing(OMDimensionMixin, Base):
-    __tablename__ = "om_open_ageing"
+    __tablename__ = "sql_om_open_ageing"
     ticket_id = Column(String(100))
     created_date = Column(DateTime)
     ageing_days = Column(Float)
@@ -135,7 +217,7 @@ class OMOpenAgeing(OMDimensionMixin, Base):
 
 
 class OMAvgClosureTime(OMDimensionMixin, Base):
-    __tablename__ = "om_avg_closure_time"
+    __tablename__ = "sql_om_avg_closure_time"
     period_type = Column(String(10))
     period_value_created = Column(String(50))
     period_value_closed = Column(String(50))
@@ -143,7 +225,7 @@ class OMAvgClosureTime(OMDimensionMixin, Base):
 
 
 class OMClosedAnalysis(OMDimensionMixin, Base):
-    __tablename__ = "om_closed_analysis"
+    __tablename__ = "sql_om_closed_analysis"
     complaint_type = Column(String(200))
     complaint_category = Column(String(200))
     period_type = Column(String(10))

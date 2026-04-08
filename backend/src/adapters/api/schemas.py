@@ -122,6 +122,21 @@ class MINonSATAgeingOut(MIDimensionBase):
     ageing_days: Optional[int] = Field(None, description="Number of days since installation (Ageing)")
 
 
+class MeterJourneyOut(MIDimensionBase):
+    di_to_gmr: Optional[float] = Field(None, description="Avg days from Dispatch to GMR Receipt")
+    gmr_to_agency: Optional[float] = Field(None, description="Avg days from GMR Receipt to Agency Allotment")
+    agency_to_sup: Optional[float] = Field(None, description="Avg days from Agency to Supervisor")
+    sup_to_install: Optional[float] = Field(None, description="Avg days from Supervisor to Installation")
+    install_to_sat: Optional[float] = Field(None, description="Avg days from Installation to SAT")
+    sat_to_revenue: Optional[float] = Field(None, description="Avg days from SAT to Revenue")
+    total_journey: Optional[float] = Field(None, description="Total avg days of meter journey")
+
+
+class MeterStageOut(MIDimensionBase):
+    current_stage: Optional[str] = Field(None, description="Stage code (e.g., INSTALLED, SAT_DONE)")
+    meter_count: Optional[int] = Field(None, description="Count of meters currently in this stage")
+
+
 # ── O&M Schemas ──────────────────────────────────────────────────────────
 
 class OMDimensionBase(BaseModel):

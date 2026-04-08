@@ -4,8 +4,8 @@
   "executionEnvironments": [
     {
       "root": "./src",
-      "extraPaths": ["./src"]
+      "extraPaths": ["./src", "./backend/src", "./etl/src"]
     }
   ],
-  "include": ["src"]
+  "include": ["src", "backend/src", "etl/src"]
 }
