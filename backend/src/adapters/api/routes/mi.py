@@ -8,8 +8,10 @@ from adapters.api.schemas import (
     MIProgressOut, MIProgressSummaryOut, MIProductivityOut, 
     MonthlyProductivityOut, MonthlyProductivitySummaryOut,
     InventoryUtilizationOut, InventoryUtilizationSummaryOut,
-    StockAgeingOut, MIvsSATOut, MIvsSATSummaryOut,
+    StockAgeingOut, StockAgeingSummaryOut, MIvsSATOut, MIvsSATSummaryOut,
     MINonSATAgeingOut, MeterJourneyOut, MeterStageOut,
+    MIvsSATvsInvoiceSummaryOut, RevenueRealizedSummaryOut, RevenueAgeingSummaryOut,
+    DefectiveMetersSummaryOut,
 )
 
 router = APIRouter(prefix="/api/mi", tags=["MI KPIs"])
@@ -211,11 +213,46 @@ def get_pace_vs_stock_summary(
 
 @router.get("/stock-ageing", response_model=List[StockAgeingOut], summary="Get Unutilized Stock Ageing Detail")
 def get_stock_ageing(
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    meter_category: Optional[str] = None,
+    project: Optional[str] = None,
     limit: int = Query(100, le=1000),
     offset: int = Query(0, ge=0),
     mi_usecase: MIUseCase = Depends(get_mi_usecase),
 ):
-    return mi_usecase.get_stock_ageing(limit, offset)
+    filters = locals()
+    filters.pop("mi_usecase")
+    return mi_usecase.get_stock_ageing(filters, limit, offset)
+
+@router.get("/stock-ageing/summary", response_model=StockAgeingSummaryOut, summary="Get Stock Ageing Aggregated Summary")
+def get_stock_ageing_summary(
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    meter_category: Optional[str] = None,
+    project: Optional[str] = None,
+    start_date: Optional[str] = Query(None, description="Start date for filtering"),
+    end_date: Optional[str] = Query(None, description="End date for filtering"),
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    result = mi_usecase.get_stock_ageing_summary(filters)
+    return StockAgeingSummaryOut(**result)
 
 @router.get("/mi-vs-sat", response_model=List[MIvsSATOut], summary="Get MI vs SAT List")
 def get_mi_vs_sat(
@@ -293,3 +330,95 @@ def get_command_center_dashboard(
     Returns the comprehensive Command Center Dashboard data structure for a given region (kashi, agra, triveni).
     """
     return mi_usecase.get_command_center_dashboard(region)
+
+
+@router.get("/mi-vs-sat-vs-invoice/summary", response_model=MIvsSATvsInvoiceSummaryOut, summary="Get MI vs SAT vs Invoice Funnel Summary")
+def get_mi_sat_invoice_summary(
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    meter_category: Optional[str] = None,
+    project: Optional[str] = None,
+    start_date: Optional[str] = Query(None, description="Start date for filtering"),
+    end_date: Optional[str] = Query(None, description="End date for filtering"),
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    result = mi_usecase.get_mi_sat_invoice_summary(filters)
+    return MIvsSATvsInvoiceSummaryOut(**result)
+
+
+@router.get("/revenue-realized/summary", response_model=RevenueRealizedSummaryOut, summary="Get Revenue Realized Summary")
+def get_revenue_realized_summary(
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    meter_category: Optional[str] = None,
+    project: Optional[str] = None,
+    start_date: Optional[str] = Query(None, description="Start date for filtering"),
+    end_date: Optional[str] = Query(None, description="End date for filtering"),
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    result = mi_usecase.get_revenue_realized_summary(filters)
+    return RevenueRealizedSummaryOut(**result)
+
+
+@router.get("/revenue-ageing/summary", response_model=RevenueAgeingSummaryOut, summary="Get Revenue Ageing (SAT to Collection) Summary")
+def get_revenue_ageing_summary(
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    meter_category: Optional[str] = None,
+    project: Optional[str] = None,
+    start_date: Optional[str] = Query(None, description="Start date for filtering"),
+    end_date: Optional[str] = Query(None, description="End date for filtering"),
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    result = mi_usecase.get_revenue_ageing_summary(filters)
+    return RevenueAgeingSummaryOut(**result)
+
+
+@router.get("/defective-meters/summary", response_model=DefectiveMetersSummaryOut, summary="Get Defective Meters Summary")
+def get_defective_meters_summary(
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    meter_category: Optional[str] = None,
+    project: Optional[str] = None,
+    start_date: Optional[str] = Query(None, description="Start date for filtering"),
+    end_date: Optional[str] = Query(None, description="End date for filtering"),
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    result = mi_usecase.get_defective_meters_summary(filters)
+    return DefectiveMetersSummaryOut(**result)

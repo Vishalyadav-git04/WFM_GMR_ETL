@@ -42,13 +42,14 @@ class SqlInventoryUtilization(MIDimensionMixin, Base):
     remaining_stock = Column(BigInteger)
 
 
-class SqlStockAgeing(Base):
+class SqlStockAgeing(MIDimensionMixin, Base):
     __tablename__ = "sql_stock_ageing"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    meter_serial_number = Column(String(100))
-    di_date = Column(Date)
-    installed_ts = Column(Date)
-    ageing_days = Column(Integer)
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the date string
+    age_0_30 = Column(BigInteger, default=0)
+    age_31_60 = Column(BigInteger, default=0)
+    age_61_90 = Column(BigInteger, default=0)
+    age_90_plus = Column(BigInteger, default=0)
 
 
 class SqlMIvsSAT(MIDimensionMixin, Base):
@@ -64,6 +65,8 @@ class SqlMIvsSAT(MIDimensionMixin, Base):
     sat_5 = Column(BigInteger, default=0)
     sat_6 = Column(BigInteger, default=0)
     sat_7 = Column(BigInteger, default=0)
+    sat_8 = Column(BigInteger, default=0)
+    sat_9 = Column(BigInteger, default=0)
     sat_progress_pct = Column(Float)
 
 
@@ -89,6 +92,76 @@ class SqlMeterCurrentStage(MIDimensionMixin, Base):
     __tablename__ = "sql_meter_current_stage"
     current_stage = Column(String(100))
     meter_count = Column(BigInteger)
+
+
+# ── Dashboard Command Center Tables ───────────────────────────────────────
+
+class DashboardCommandCenter(Base):
+    __tablename__ = "dashboard_command_center"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    inventory = Column(BigInteger)
+    installed = Column(BigInteger)
+    total_sat = Column(BigInteger)
+    total_invoice = Column(BigInteger)
+    sat_1_eligibility = Column(BigInteger)
+    sat_2_eligibility = Column(BigInteger)
+    sat_3_eligibility = Column(BigInteger)
+    sat_4_eligibility = Column(BigInteger)
+    sat_5_eligibility = Column(BigInteger)
+    sat_6_eligibility = Column(BigInteger)
+    sat_7_eligibility = Column(BigInteger)
+    sat_8_eligibility = Column(BigInteger, default=0)
+    sat_9_eligibility = Column(BigInteger, default=0)
+    sat_1_achievement = Column(BigInteger)
+    sat_2_achievement = Column(BigInteger)
+    sat_3_achievement = Column(BigInteger)
+    sat_4_achievement = Column(BigInteger)
+    sat_5_achievement = Column(BigInteger)
+    sat_6_achievement = Column(BigInteger)
+    sat_7_achievement = Column(BigInteger)
+    sat_8_achievement = Column(BigInteger, default=0)
+    sat_9_achievement = Column(BigInteger, default=0)
+    sat_1_throughput_pct = Column(Float)
+    sat_2_throughput_pct = Column(Float)
+    sat_3_throughput_pct = Column(Float)
+    sat_4_throughput_pct = Column(Float)
+    sat_5_throughput_pct = Column(Float)
+    sat_6_throughput_pct = Column(Float)
+    sat_7_throughput_pct = Column(Float)
+    sat_8_throughput_pct = Column(Float, default=0)
+    sat_9_throughput_pct = Column(Float, default=0)
+
+
+class DashboardCommandCenterTrend(Base):
+    __tablename__ = "dashboard_command_center_trend"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    period_type = Column(String(50))
+    period_value = Column(String(50))
+    inventory_added = Column(BigInteger)
+    installed_added = Column(BigInteger)
+    s1_added = Column(BigInteger)
+    s2_added = Column(BigInteger)
+    s3_added = Column(BigInteger)
+    s4_added = Column(BigInteger)
+    s5_added = Column(BigInteger)
+    s6_added = Column(BigInteger)
+    s7_added = Column(BigInteger)
+    s8_added = Column(BigInteger, default=0)
+    s9_added = Column(BigInteger, default=0)
+
+
+class DashboardCommandCenterMilestone(Base):
+    __tablename__ = "dashboard_command_center_milestone"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    stage = Column(String(50))
+    start_date = Column(Date)
+    lumpsum_inv_date = Column(Date)
+    pmpm_inv_date = Column(Date)
+    lumpsum_col_date = Column(Date)
+    pmpm_col_date = Column(Date)
 
 
 # ── O&M KPI Tables (Shadow) ─────────────────────────────────────────────────────

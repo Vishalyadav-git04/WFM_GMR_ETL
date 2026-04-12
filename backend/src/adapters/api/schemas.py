@@ -34,8 +34,8 @@ class MIProgressOut(MIDimensionBase):
 
 class MIProgressSummaryOut(BaseModel):
     total_progress: int = Field(..., description="Total installations across all selected filters")
-    category_breakdown: Dict[str, int] = Field(..., description="Installations broken down by Meter Category")
-    period_breakdown: List[Dict[str, Any]] = Field(..., description="Trend data showing installations over time")
+    category_breakdown: Dict[str, Any] = Field(..., description="Installations broken down by Meter Category and Meter Type")
+    period_breakdown: Dict[str, Any] = Field(..., description="Trend data showing installations over time with Category/Meter Type details")
 
 
 class MIProductivityOut(MIDimensionBase):
@@ -54,8 +54,8 @@ class MonthlyProductivityOut(MIDimensionBase):
 class MonthlyProductivitySummaryOut(BaseModel):
     total_installations: int = Field(..., description="Total cumulative installations for the selected month/filters")
     period_value: Optional[str] = Field(None, description="Month in YYYY-MM format")
-    category_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
-    period_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
 
 class InventoryUtilizationOut(MIDimensionBase):
@@ -71,18 +71,24 @@ class InventoryUtilizationSummaryOut(BaseModel):
     total_installed: int = Field(..., description="Total installed count")
     utilization_rate_pct: float = Field(..., description="Overall utilization percentage")
     remaining_stock: int = Field(..., description="Overall remaining stock")
-    category_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
-    period_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
 
 class StockAgeingOut(BaseModel):
-    meter_serial_number: Optional[str] = Field(None, description="Unique Meter Serial Number")
-    di_date: Optional[date] = Field(None, description="Dispatch Date of the meter")
-    installed_ts: Optional[date] = Field(None, description="Installation Date (null if not installed)")
-    ageing_days: Optional[int] = Field(None, description="Number of days the meter has been in unutilized stock")
+    # Backward compatibility or granular view if needed
+    age_0_30: Optional[int] = 0
+    age_31_60: Optional[int] = 0
+    age_61_90: Optional[int] = 0
+    age_90_plus: Optional[int] = 0
 
     class Config:
         from_attributes = True
+
+
+class StockAgeingSummaryOut(BaseModel):
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
 
 
@@ -98,6 +104,8 @@ class MIvsSATOut(MIDimensionBase):
     sat_5: Optional[int] = Field(0, description="SAT Stage 5 count")
     sat_6: Optional[int] = Field(0, description="SAT Stage 6 count")
     sat_7: Optional[int] = Field(0, description="SAT Stage 7 count")
+    sat_8: Optional[int] = Field(0, description="SAT Stage 8 count")
+    sat_9: Optional[int] = Field(0, description="SAT Stage 9 count")
     sat_progress_pct: Optional[float] = Field(None, description="Percentage of SAT completion vs MI")
 
 
@@ -111,9 +119,11 @@ class MIvsSATSummaryOut(BaseModel):
     sat_5: int = Field(0, description="Total SAT Stage 5")
     sat_6: int = Field(0, description="Total SAT Stage 6")
     sat_7: int = Field(0, description="Total SAT Stage 7")
+    sat_8: int = Field(0, description="Total SAT Stage 8")
+    sat_9: int = Field(0, description="Total SAT Stage 9")
     sat_progress_pct: float = Field(..., description="Overall SAT progress percentage")
-    category_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
-    period_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
 
 class MINonSATAgeingOut(MIDimensionBase):
@@ -135,6 +145,34 @@ class MeterJourneyOut(MIDimensionBase):
 class MeterStageOut(MIDimensionBase):
     current_stage: Optional[str] = Field(None, description="Stage code (e.g., INSTALLED, SAT_DONE)")
     meter_count: Optional[int] = Field(None, description="Count of meters currently in this stage")
+
+
+class MIvsSATvsInvoiceSummaryOut(BaseModel):
+    total_mi: int = Field(..., description="Total MI count")
+    total_sat: int = Field(..., description="Total SAT count")
+    total_invoice: int = Field(..., description="Total Invoice count")
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RevenueRealizedSummaryOut(BaseModel):
+    total_realized: int = Field(..., description="Total Realized count")
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RevenueAgeingSummaryOut(BaseModel):
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DefectiveMetersSummaryOut(BaseModel):
+    total_defective: int = Field(..., description="Total defective meter count")
+    total_burnt: int = Field(..., description="Total burnt meter count")
+    total_faulty: int = Field(..., description="Total faulty meter count")
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
 
 
 # ── O&M Schemas ──────────────────────────────────────────────────────────

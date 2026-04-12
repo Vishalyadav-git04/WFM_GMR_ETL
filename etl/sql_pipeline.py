@@ -27,7 +27,11 @@ from modules.mi.sql_transform import (
     execute_kpi_10_meter_stage,
     execute_command_center_kpi,
     execute_command_center_trend,
-    execute_command_center_milestones
+    execute_command_center_milestones,
+    execute_kpi_11_mi_sat_invoice,
+    execute_kpi_12_revenue_realized,
+    execute_kpi_13_revenue_ageing,
+    execute_kpi_14_defective_meters
 )
 from modules.om.sql_transform import (
     execute_om_productivity_team,
@@ -67,6 +71,12 @@ def run_mi_sql_pipeline():
     execute_command_center_kpi(engine)
     execute_command_center_trend(engine)
     execute_command_center_milestones(engine)
+    
+    # New Revenue & Quality KPIs
+    execute_kpi_11_mi_sat_invoice(engine)
+    execute_kpi_12_revenue_realized(engine)
+    execute_kpi_13_revenue_ageing(engine)
+    execute_kpi_14_defective_meters(engine)
     
     log.info("=== MI SQL Push-down Pipeline finished ===")
 

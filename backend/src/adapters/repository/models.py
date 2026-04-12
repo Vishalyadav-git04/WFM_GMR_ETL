@@ -76,13 +76,41 @@ class InventoryUtilization(MIDimensionMixin, Base):
     remaining_stock = Column(BigInteger)
 
 
-class StockAgeing(Base):
+class StockAgeing(MIDimensionMixin, Base):
     __tablename__ = "sql_stock_ageing"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    meter_serial_number = Column(String(100))
-    di_date = Column(Date)
-    installed_ts = Column(Date)
-    ageing_days = Column(Integer)
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the date string
+    age_0_30 = Column(BigInteger, default=0)
+    age_31_60 = Column(BigInteger, default=0)
+    age_61_90 = Column(BigInteger, default=0)
+    age_90_plus = Column(BigInteger, default=0)
+
+
+class MIvsSATvsInvoice(MIDimensionMixin, Base):
+    __tablename__ = "sql_mi_sat_invoice"
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the date string
+    total_mi = Column(BigInteger)
+    total_sat = Column(BigInteger)
+    total_invoice = Column(BigInteger)
+
+
+class RevenueRealized(MIDimensionMixin, Base):
+    __tablename__ = "sql_revenue_realized"
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the date string (collection month)
+    total_realized = Column(BigInteger)
+
+
+class RevenueAgeing(MIDimensionMixin, Base):
+    __tablename__ = "sql_revenue_ageing"
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the date string
+    age_0_30 = Column(BigInteger, default=0)
+    age_31_60 = Column(BigInteger, default=0)
+    age_61_90 = Column(BigInteger, default=0)
+    age_90_plus = Column(BigInteger, default=0)
+
 
 
 class MIvsSAT(MIDimensionMixin, Base):
@@ -98,6 +126,8 @@ class MIvsSAT(MIDimensionMixin, Base):
     sat_5 = Column(BigInteger, default=0)
     sat_6 = Column(BigInteger, default=0)
     sat_7 = Column(BigInteger, default=0)
+    sat_8 = Column(BigInteger, default=0)
+    sat_9 = Column(BigInteger, default=0)
     sat_progress_pct = Column(Float)
 
 
@@ -125,6 +155,13 @@ class MeterCurrentStage(MIDimensionMixin, Base):
     meter_count = Column(BigInteger)
 
 
+class DefectiveMeters(MIDimensionMixin, Base):
+    __tablename__ = "sql_defective_meters"
+    defective_type = Column(String(50))  # Meter Burnt, Meter Faulty, Others
+    period_value = Column(String(50))   # YYYY-MM
+    meter_count = Column(BigInteger)
+
+
 # ── Command Center Dashboard Tables ───────────────────────────────────────
 
 class DashboardCommandCenter(Base):
@@ -143,6 +180,7 @@ class DashboardCommandCenter(Base):
     sat_6_eligibility = Column(BigInteger)
     sat_7_eligibility = Column(BigInteger)
     sat_8_eligibility = Column(BigInteger, default=0)
+    sat_9_eligibility = Column(BigInteger, default=0)
     sat_1_achievement = Column(BigInteger)
     sat_2_achievement = Column(BigInteger)
     sat_3_achievement = Column(BigInteger)
@@ -151,6 +189,7 @@ class DashboardCommandCenter(Base):
     sat_6_achievement = Column(BigInteger)
     sat_7_achievement = Column(BigInteger)
     sat_8_achievement = Column(BigInteger, default=0)
+    sat_9_achievement = Column(BigInteger, default=0)
     sat_1_throughput_pct = Column(Float)
     sat_2_throughput_pct = Column(Float)
     sat_3_throughput_pct = Column(Float)
@@ -159,6 +198,7 @@ class DashboardCommandCenter(Base):
     sat_6_throughput_pct = Column(Float)
     sat_7_throughput_pct = Column(Float)
     sat_8_throughput_pct = Column(Float, default=0)
+    sat_9_throughput_pct = Column(Float, default=0)
 
 
 class DashboardCommandCenterTrend(Base):
@@ -177,6 +217,7 @@ class DashboardCommandCenterTrend(Base):
     s6_added = Column(BigInteger)
     s7_added = Column(BigInteger)
     s8_added = Column(BigInteger, default=0)
+    s9_added = Column(BigInteger, default=0)
 
 class DashboardCommandCenterMilestone(Base):
     __tablename__ = "dashboard_command_center_milestone"

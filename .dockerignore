@@ -6,7 +6,7 @@ __pycache__/
 venv/
 ENV/
 logs/
-input_data/
+data/
 .git/
 .gitignore
 *.docx

@@ -41,8 +41,11 @@ class MIUseCase:
     def get_mi_vs_sat_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         return self.mi_repo.get_mi_vs_sat_summary(filters)
 
-    def get_stock_ageing(self, limit: int, offset: int) -> List[Any]:
-        return self.mi_repo.get_stock_ageing(limit, offset)
+    def get_stock_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
+        return self.mi_repo.get_stock_ageing(filters, limit, offset)
+
+    def get_stock_ageing_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.mi_repo.get_stock_ageing_summary(filters)
 
     def get_non_sat_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.mi_repo.get_non_sat_ageing(filters, limit, offset)
@@ -55,6 +58,18 @@ class MIUseCase:
 
     def get_command_center_dashboard(self, project: str) -> Dict[str, Any]:
         return self.mi_repo.get_command_center_dashboard(project)
+
+    def get_mi_sat_invoice_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.mi_repo.get_mi_sat_invoice_summary(filters)
+
+    def get_revenue_realized_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.mi_repo.get_revenue_realized_summary(filters)
+
+    def get_revenue_ageing_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.mi_repo.get_revenue_ageing_summary(filters)
+
+    def get_defective_meters_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.mi_repo.get_defective_meters_summary(filters)
 
     def run_mi_etl(self, df_install: pl.LazyFrame):
         """Orchestrates the MI transform and save process."""

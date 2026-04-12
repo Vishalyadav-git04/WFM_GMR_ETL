@@ -20,8 +20,7 @@ INSTALL_FILE = INPUT_DIR / "installation_merged 123.csv"
 INVENTORY_FILE = INPUT_DIR / "inventory_merged 2.csv"
 
 # Source Database Tables
-INSTALL_TABLE = "new_installation_data"
-INVENTORY_TABLE = "new_inventory_data"
+MI_SOURCE_TABLE = "unified_installation_inventory_data"
 
 # O&M complaint files
 OM_FILES = {
@@ -50,17 +49,17 @@ if not DATABASE_URL:
 
 # ── Dimension Columns ────────────────────────────────────────────────────
 MI_DIMENSIONS = [
-    "Project",
-    "Discom",
-    "Zone",
-    "Circle",
-    "Division",
-    "SubDivision",
-    "SubStation",
-    "Feeder",
-    "DTR",
-    "newMeterType",
-    "MeterCategory",
+    "project",
+    "discom",
+    "zone",
+    "circle",
+    "division",
+    "subdivision",
+    "substation",
+    "feeder",
+    "dtr",
+    "metertype",
+    "connection_type",
 ]
 
 OM_DIMENSIONS = [
