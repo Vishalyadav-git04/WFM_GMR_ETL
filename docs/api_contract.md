@@ -417,13 +417,13 @@ Shows average number of days a meter spends in each lifecycle stage.
 [
   {
     "project": "AGRA", "discom": "DVVNL",
-    "di_to_gmr": 5.2,
-    "gmr_to_agency": 3.1,
-    "agency_to_sup": 2.0,
-    "sup_to_install": 4.5,
-    "install_to_sat": 12.3,
-    "sat_to_revenue": 8.7,
-    "total_journey": 35.8
+    "di_to_gmr": 5.2, inventory to store
+    "gmr_to_agency": 3.1,store to agency , 
+    "agency_to_sup": 2.0,    remove agenecny to sup keep agency to installation
+    "sup_to_install": 4.5, agency to meter installation
+    "install_to_sat": 12.3,meter installation to sat
+    "sat_to_revenue": 8.7, sat to invoice and invocice to revenue
+    "total_journey": 35.8 
   }
 ]
 ```
