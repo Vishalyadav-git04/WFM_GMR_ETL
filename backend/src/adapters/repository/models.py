@@ -92,7 +92,8 @@ class MIvsSATvsInvoice(MIDimensionMixin, Base):
     period_value = Column(String(50))  # the date string
     total_mi = Column(BigInteger)
     total_sat = Column(BigInteger)
-    total_invoice = Column(BigInteger)
+    total_lumpsum_invoice = Column(BigInteger)
+    total_pmpm_invoice = Column(BigInteger)
 
 
 class RevenueRealized(MIDimensionMixin, Base):

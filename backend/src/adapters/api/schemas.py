@@ -192,10 +192,11 @@ class MINonSATAgeingOut(MIDimensionBase):
 
 class NonSATAgeingPeriodTrendPoint(BaseModel):
     period_value: str
-    age_gt_30: int = 0
-    age_gt_60: int = 0
-    age_gt_90: int = 0
-    age_gt_120: int = 0
+    age_0_30: int = 0
+    age_31_60: int = 0
+    age_61_90: int = 0
+    age_91_120: int = 0
+    age_120_plus: int = 0
     total_non_sat: int = 0
 
 
@@ -205,11 +206,27 @@ class NonSATAgeingComparisonItem(BaseModel):
     FEEDER: int = 0
     DT: int = 0
     count: int = 0
+    age_0_30: int = 0
+    age_31_60: int = 0
+    age_61_90: int = 0
+    age_91_120: int = 0
+    age_120_plus: int = 0
+    total_non_sat: int = 0
+
+
+class NonSATAgeingSummary(BaseModel):
+    age_0_30: int = 0
+    age_31_60: int = 0
+    age_61_90: int = 0
+    age_91_120: int = 0
+    age_120_plus: int = 0
+    total_non_sat: int = 0
 
 
 class NonSATAgeingDashboardOut(BaseModel):
     total_non_sat: int = Field(..., description="Overall total non sat count")
     category_breakdown: Dict[str, int] = Field(default_factory=dict)
+    summary: NonSATAgeingSummary = Field(default_factory=NonSATAgeingSummary)
     period_breakdown: List[NonSATAgeingPeriodTrendPoint] = Field(default_factory=list)
     comparison: List[NonSATAgeingComparisonItem] = Field(default_factory=list)
 
@@ -343,9 +360,11 @@ class MeterStageFunnelSummaryOut(BaseModel):
 class MIvsSATvsInvoiceSummaryOut(BaseModel):
     total_mi: int = Field(..., description="Total MI count")
     total_sat: int = Field(..., description="Total SAT count")
-    total_invoice: int = Field(..., description="Total Invoice count")
+    total_lumpsum_invoice: int = Field(..., description="Total lumpsum invoice count")
+    total_pmpm_invoice: int = Field(..., description="Total pmpm invoice count")
     category_breakdown: Dict[str, Any] = Field(default_factory=dict)
     period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    comparison: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class RevenueRealizedSummaryOut(BaseModel):
@@ -370,12 +389,33 @@ class RevenueAgeingSummaryOut(BaseModel):
     )
 
 
+class DefectiveMetersTrendPoint(BaseModel):
+    period_value: str
+    CONSUMER: int = 0
+    FEEDER: int = 0
+    DT: int = 0
+    burnt: int = 0
+    faulty: int = 0
+    others: int = 0
+
+class DefectiveMetersComparisonItem(BaseModel):
+    label: str
+    CONSUMER: int = 0
+    FEEDER: int = 0
+    DT: int = 0
+    burnt: int = 0
+    faulty: int = 0
+    others: int = 0
+    total_defective: int = 0
+
 class DefectiveMetersSummaryOut(BaseModel):
     total_defective: int = Field(..., description="Total defective meter count")
     total_burnt: int = Field(..., description="Total burnt meter count")
     total_faulty: int = Field(..., description="Total faulty meter count")
+    total_others: int = Field(..., description="Total others meter count")
     category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    trend: List[DefectiveMetersTrendPoint] = Field(default_factory=list)
+    comparison: List[DefectiveMetersComparisonItem] = Field(default_factory=list)
 
 
 

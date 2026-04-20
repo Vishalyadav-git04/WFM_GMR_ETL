@@ -937,9 +937,10 @@ class SQLAlchemyMIRepository(IMIRepository):
 
         p_rows = q.with_entities(
             p_expr.label("period_value"),
-            func.sum(case((NonSATAgeing.ageing_days > 30, 1), else_=0)),
-            func.sum(case((NonSATAgeing.ageing_days > 60, 1), else_=0)),
-            func.sum(case((NonSATAgeing.ageing_days > 90, 1), else_=0)),
+            func.sum(case((NonSATAgeing.ageing_days <= 30, 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 30) & (NonSATAgeing.ageing_days <= 60), 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 60) & (NonSATAgeing.ageing_days <= 90), 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 90) & (NonSATAgeing.ageing_days <= 120), 1), else_=0)),
             func.sum(case((NonSATAgeing.ageing_days > 120, 1), else_=0)),
             func.count(NonSATAgeing.meter_serial_number)
         ).group_by(p_expr).all()
@@ -957,12 +958,32 @@ class SQLAlchemyMIRepository(IMIRepository):
         for r in p_rows:
             period_breakdown.append({
                 "period_value": str(r[0]),
-                "age_gt_30": int(r[1] or 0),
-                "age_gt_60": int(r[2] or 0),
-                "age_gt_90": int(r[3] or 0),
-                "age_gt_120": int(r[4] or 0),
-                "total_non_sat": int(r[5] or 0)
+                "age_0_30": int(r[1] or 0),
+                "age_31_60": int(r[2] or 0),
+                "age_61_90": int(r[3] or 0),
+                "age_91_120": int(r[4] or 0),
+                "age_120_plus": int(r[5] or 0),
+                "total_non_sat": int(r[6] or 0)
             })
+
+        # Summary calculation
+        s_res = q.with_entities(
+            func.sum(case((NonSATAgeing.ageing_days <= 30, 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 30) & (NonSATAgeing.ageing_days <= 60), 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 60) & (NonSATAgeing.ageing_days <= 90), 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 90) & (NonSATAgeing.ageing_days <= 120), 1), else_=0)),
+            func.sum(case((NonSATAgeing.ageing_days > 120, 1), else_=0)),
+            func.count(NonSATAgeing.meter_serial_number)
+        ).first()
+
+        summary = {
+            "age_0_30": int(s_res[0] or 0),
+            "age_31_60": int(s_res[1] or 0),
+            "age_61_90": int(s_res[2] or 0),
+            "age_91_120": int(s_res[3] or 0),
+            "age_120_plus": int(s_res[4] or 0),
+            "total_non_sat": int(s_res[5] or 0)
+        }
 
         # Comparison
         if level == "discom" and project == "all":
@@ -980,6 +1001,11 @@ class SQLAlchemyMIRepository(IMIRepository):
         comp_rows = q.with_entities(
             group_expr.label("label"),
             NonSATAgeing.meter_category,
+            func.sum(case((NonSATAgeing.ageing_days <= 30, 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 30) & (NonSATAgeing.ageing_days <= 60), 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 60) & (NonSATAgeing.ageing_days <= 90), 1), else_=0)),
+            func.sum(case(((NonSATAgeing.ageing_days > 90) & (NonSATAgeing.ageing_days <= 120), 1), else_=0)),
+            func.sum(case((NonSATAgeing.ageing_days > 120, 1), else_=0)),
             func.count(NonSATAgeing.meter_serial_number)
         ).group_by(group_expr, NonSATAgeing.meter_category).order_by("label").all()
 
@@ -987,28 +1013,49 @@ class SQLAlchemyMIRepository(IMIRepository):
         for r in comp_rows:
             label = str(r[0])
             cat = str(r[1]).upper() if r[1] else "UNKNOWN"
-            cnt = int(r[2] or 0)
+            a0_30 = int(r[2] or 0)
+            a31_60 = int(r[3] or 0)
+            a61_90 = int(r[4] or 0)
+            a91_120 = int(r[5] or 0)
+            a120_p = int(r[6] or 0)
+            cnt = int(r[7] or 0)
+
             if label not in comparison_map:
-                comparison_map[label] = {"CONSUMER": 0, "FEEDER": 0, "DT": 0}
-            if cat in comparison_map[label]:
+                comparison_map[label] = {
+                    "CONSUMER": 0, "FEEDER": 0, "DT": 0,
+                    "age_0_30": 0, "age_31_60": 0, "age_61_90": 0, "age_91_120": 0, "age_120_plus": 0, "total_non_sat": 0
+                }
+            
+            if cat in ("CONSUMER", "FEEDER", "DT"):
                 comparison_map[label][cat] += cnt
+            
+            comparison_map[label]["age_0_30"] += a0_30
+            comparison_map[label]["age_31_60"] += a31_60
+            comparison_map[label]["age_61_90"] += a61_90
+            comparison_map[label]["age_91_120"] += a91_120
+            comparison_map[label]["age_120_plus"] += a120_p
+            comparison_map[label]["total_non_sat"] += cnt
                 
         comparison = []
-        for label, cats in sorted(comparison_map.items()):
-            c_cons = cats["CONSUMER"]
-            c_feed = cats["FEEDER"]
-            c_dt = cats["DT"]
+        for label, data in sorted(comparison_map.items()):
             comparison.append({
                 "label": label,
-                "CONSUMER": c_cons,
-                "FEEDER": c_feed,
-                "DT": c_dt,
-                "count": c_cons + c_feed + c_dt
+                "CONSUMER": data["CONSUMER"],
+                "FEEDER": data["FEEDER"],
+                "DT": data["DT"],
+                "count": data["total_non_sat"],
+                "age_0_30": data["age_0_30"],
+                "age_31_60": data["age_31_60"],
+                "age_61_90": data["age_61_90"],
+                "age_91_120": data["age_91_120"],
+                "age_120_plus": data["age_120_plus"],
+                "total_non_sat": data["total_non_sat"]
             })
 
         return {
             "total_non_sat": total_non_sat,
             "category_breakdown": category_breakdown,
+            "summary": summary,
             "period_breakdown": period_breakdown,
             "comparison": comparison
         }
@@ -1444,34 +1491,116 @@ class SQLAlchemyMIRepository(IMIRepository):
     def get_mi_sat_invoice_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """KPI 11: MI vs SAT vs Invoice funnel summary."""
         q = self.session.query(MIvsSATvsInvoice)
-        q = self._apply_filters(q, MIvsSATvsInvoice, filters)
         
-        # Period Breakdown
+        project = str(filters.get("project") or "all").lower()
+        level = (filters.get("level") or "discom").lower()
+        duration = (filters.get("duration") or filters.get("period") or "monthly").lower()
+
+        base_filters = dict(filters)
+        start_date = base_filters.pop("start_date", None)
+        end_date = base_filters.pop("end_date", None)
+        base_filters.pop("duration", None)
+        base_filters.pop("period", None)
+        base_filters.pop("level", None)
+        base_filters.pop("project", None)
+        
+        # Handle category alias
+        if "category" in base_filters:
+            if not base_filters.get("meter_category"):
+                base_filters["meter_category"] = base_filters.pop("category")
+            else:
+                base_filters.pop("category")
+        
+        q = self._apply_filters(q, MIvsSATvsInvoice, base_filters)
+
+        if project == "all" or not project:
+            q = q.filter(func.upper(func.trim(MIvsSATvsInvoice.project)).in_(["AGRA", "KASHI", "TRIVENI"]))
+        else:
+            q = q.filter(func.upper(func.trim(MIvsSATvsInvoice.project)) == project.upper())
+
+        if start_date:
+            q = q.filter(func.to_date(MIvsSATvsInvoice.period_value, "DD-MM-YY") >= func.to_date(str(start_date), "YYYY-MM-DD"))
+        if end_date:
+            q = q.filter(func.to_date(MIvsSATvsInvoice.period_value, "DD-MM-YY") <= func.to_date(str(end_date), "YYYY-MM-DD"))
+            
         p_rows = q.with_entities(
             MIvsSATvsInvoice.period_value,
             MIvsSATvsInvoice.meter_category,
             MIvsSATvsInvoice.new_meter_type,
             func.sum(MIvsSATvsInvoice.total_mi),
             func.sum(MIvsSATvsInvoice.total_sat),
-            func.sum(MIvsSATvsInvoice.total_invoice)
+            func.sum(MIvsSATvsInvoice.total_lumpsum_invoice),
+            func.sum(MIvsSATvsInvoice.total_pmpm_invoice)
         ).group_by(MIvsSATvsInvoice.period_value, MIvsSATvsInvoice.meter_category, MIvsSATvsInvoice.new_meter_type).all()
         
-        # Category Breakdown
         c_rows = q.with_entities(
             MIvsSATvsInvoice.meter_category,
             MIvsSATvsInvoice.new_meter_type,
             func.sum(MIvsSATvsInvoice.total_mi),
             func.sum(MIvsSATvsInvoice.total_sat),
-            func.sum(MIvsSATvsInvoice.total_invoice)
+            func.sum(MIvsSATvsInvoice.total_lumpsum_invoice),
+            func.sum(MIvsSATvsInvoice.total_pmpm_invoice)
         ).group_by(MIvsSATvsInvoice.meter_category, MIvsSATvsInvoice.new_meter_type).all()
         
-        vals = ["mi", "sat", "invoice"]
+        # ── Comparison logic ──
+        if level == "discom" and project == "all":
+            group_expr = func.upper(func.trim(MIvsSATvsInvoice.project))
+        else:
+            if not hasattr(MIvsSATvsInvoice, level):
+                level = "discom"
+            level_col = getattr(MIvsSATvsInvoice, level)
+            if project == "all" and level != "discom":
+                group_expr = func.concat(
+                    func.upper(func.trim(MIvsSATvsInvoice.project)),
+                    " | ",
+                    func.coalesce(level_col, "Unknown")
+                )
+            else:
+                group_expr = func.coalesce(level_col, "Unknown")
+        
+        cmp_rows = q.with_entities(
+            group_expr.label("label"),
+            func.sum(MIvsSATvsInvoice.total_mi),
+            func.sum(MIvsSATvsInvoice.total_sat),
+            func.sum(MIvsSATvsInvoice.total_lumpsum_invoice),
+            func.sum(MIvsSATvsInvoice.total_pmpm_invoice)
+        ).group_by(group_expr).order_by("label").all()
+        
+        comparison = []
+        for r in cmp_rows:
+            comparison.append({
+                "label": str(r[0] or "Unknown").strip(),
+                "total_mi": int(r[1] or 0),
+                "total_sat": int(r[2] or 0),
+                "total_lumpsum_invoice": int(r[3] or 0),
+                "total_pmpm_invoice": int(r[4] or 0)
+            })
+            
+        vals = ["mi", "sat", "lumpsum_invoice", "pmpm_invoice"]
+        
+        from datetime import datetime
+        def normalize_pb(pb):
+            out = {}
+            for k, v in pb.items():
+                try:
+                    dt = datetime.strptime(k, "%d-%m-%y")
+                    norm_k = dt.strftime("%Y-%m-%d")
+                except:
+                    norm_k = k
+                out[norm_k] = v
+            return out
+
+        pb_raw = self._format_nested_breakdown(p_rows, vals)
+        pb = normalize_pb(pb_raw)
+
         return {
             "total_mi": int(sum(r[2] for r in c_rows) or 0),
             "total_sat": int(sum(r[3] for r in c_rows) or 0),
-            "total_invoice": int(sum(r[4] for r in c_rows) or 0),
-            "period_breakdown": self._format_nested_breakdown(p_rows, vals),
-            "category_breakdown": self._format_nested_breakdown(c_rows, vals)
+            "total_lumpsum_invoice": int(sum(r[4] for r in c_rows) or 0),
+            "total_pmpm_invoice": int(sum(r[5] for r in c_rows) or 0),
+            "period_breakdown": pb,
+            "category_breakdown": self._format_nested_breakdown(c_rows, vals),
+            "comparison": comparison
         }
 
 
@@ -1715,10 +1844,31 @@ class SQLAlchemyMIRepository(IMIRepository):
     def get_defective_meters_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """KPI 14: Defective Meters summary."""
         q = self.session.query(DefectiveMeters)
-        q = self._apply_filters(q, DefectiveMeters, filters)
         
-        # We need to sum meter_count for each defective_type
-        # Categories: Meter Burnt, Meter Faulty, Others
+        duration = (filters.get("duration") or filters.get("period") or "monthly").lower()
+        level = (filters.get("level") or "discom").lower()
+        project = (filters.get("project") or "all").lower()
+
+        base_filters = dict(filters)
+        start_date = base_filters.pop("start_date", None)
+        end_date = base_filters.pop("end_date", None)
+        base_filters.pop("duration", None)
+        base_filters.pop("period", None)
+        base_filters.pop("level", None)
+        base_filters.pop("project", None)
+        
+        q = self._apply_filters(q, DefectiveMeters, base_filters)
+        
+        if project == "all" or not project:
+            q = q.filter(func.upper(func.trim(DefectiveMeters.project)).in_(["AGRA", "KASHI", "TRIVENI"]))
+        else:
+            q = q.filter(func.upper(func.trim(DefectiveMeters.project)) == project.upper())
+
+        if start_date:
+            q = q.filter(func.to_date(DefectiveMeters.period_value, "DD-MM-YY") >= func.to_date(str(start_date), "YYYY-MM-DD"))
+        if end_date:
+            q = q.filter(func.to_date(DefectiveMeters.period_value, "DD-MM-YY") <= func.to_date(str(end_date), "YYYY-MM-DD"))
+        
         entities = [
             DefectiveMeters.meter_category,
             DefectiveMeters.new_meter_type,
@@ -1733,13 +1883,101 @@ class SQLAlchemyMIRepository(IMIRepository):
         p_rows = q.with_entities(*p_entities).group_by(DefectiveMeters.period_value, DefectiveMeters.meter_category, DefectiveMeters.new_meter_type).all()
         
         val_keys = ["meter_burnt", "meter_faulty", "others"]
+        category_breakdown = self._format_nested_breakdown(c_rows, val_keys)
         
+        from datetime import datetime
+        trend_map = {}
+        for r in p_rows:
+            pv = str(r[0] or "")
+            cat = str(r[1] or 'UNKNOWN').upper()
+            burnt = int(r[3] or 0)
+            faulty = int(r[4] or 0)
+            others = int(r[5] or 0)
+            total = burnt + faulty + others
+            
+            if pv not in trend_map:
+                try:
+                    dt = datetime.strptime(pv, "%d-%m-%y")
+                    pv_norm = dt.strftime("%Y-%m-%d")
+                    sort_date = dt.date()
+                except Exception:
+                    pv_norm = pv
+                    sort_date = datetime.min.date()
+                    
+                trend_map[pv] = {
+                    "period_value": pv_norm, 
+                    "sort_date": sort_date,
+                    "CONSUMER": 0, "FEEDER": 0, "DT": 0, 
+                    "burnt": 0, "faulty": 0, "others": 0
+                }
+            
+            if cat in trend_map[pv]:
+                trend_map[pv][cat] += total
+            
+            trend_map[pv]["burnt"] += burnt
+            trend_map[pv]["faulty"] += faulty
+            trend_map[pv]["others"] += others
+            
+        trend = sorted(list(trend_map.values()), key=lambda x: x.pop("sort_date"))
+        
+        if level == "discom" and project == "all":
+            group_expr = func.upper(func.trim(DefectiveMeters.project))
+        else:
+            if not hasattr(DefectiveMeters, level):
+                level = "discom"
+            level_col = getattr(DefectiveMeters, level)
+            if project == "all" and level != "discom":
+                group_expr = func.concat(
+                    func.upper(func.trim(DefectiveMeters.project)),
+                    " | ",
+                    func.coalesce(level_col, "Unknown")
+                )
+            else:
+                group_expr = func.coalesce(level_col, "Unknown")
+                
+        cmp_rows = q.with_entities(
+            group_expr.label("label"),
+            DefectiveMeters.meter_category,
+            func.sum(case((DefectiveMeters.defective_type == 'Meter Burnt', DefectiveMeters.meter_count), else_=0)),
+            func.sum(case((DefectiveMeters.defective_type == 'Meter Faulty', DefectiveMeters.meter_count), else_=0)),
+            func.sum(case((DefectiveMeters.defective_type == 'Others', DefectiveMeters.meter_count), else_=0))
+        ).group_by(group_expr, DefectiveMeters.meter_category).order_by("label").all()
+        
+        comp_map = {}
+        for r in cmp_rows:
+            label = str(r[0] or "Unknown").strip()
+            cat = str(r[1] or "UNKNOWN").upper()
+            burnt = int(r[2] or 0)
+            faulty = int(r[3] or 0)
+            others = int(r[4] or 0)
+            total_cat = burnt + faulty + others
+            
+            if label not in comp_map:
+                comp_map[label] = {
+                    "label": label,
+                    "CONSUMER": 0, "FEEDER": 0, "DT": 0,
+                    "burnt": 0, "faulty": 0, "others": 0,
+                    "total_defective": 0
+                }
+            
+            if cat in comp_map[label]:
+                comp_map[label][cat] += total_cat
+                
+            comp_map[label]["burnt"] += burnt
+            comp_map[label]["faulty"] += faulty
+            comp_map[label]["others"] += others
+            comp_map[label]["total_defective"] += total_cat
+            
+        comparison = list(comp_map.values())
+
         return {
             "total_defective": int(sum(r[2]+r[3]+r[4] for r in c_rows) or 0),
             "total_burnt": int(sum(r[2] for r in c_rows) or 0),
             "total_faulty": int(sum(r[3] for r in c_rows) or 0),
-            "category_breakdown": self._format_nested_breakdown(c_rows, val_keys),
-            "period_breakdown": self._format_nested_breakdown(p_rows, val_keys)
+            "total_others": int(sum(r[4] for r in c_rows) or 0),
+            "category_breakdown": category_breakdown,
+            "trend": trend,
+            "comparison": comparison
         }
 
 

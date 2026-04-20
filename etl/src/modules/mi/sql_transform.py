@@ -816,7 +816,7 @@ def execute_kpi_11_mi_sat_invoice(engine):
         INSERT INTO sql_mi_sat_invoice (
             project, discom, zone, circle, division, subdivision, 
             substation, feeder, dtr, new_meter_type, meter_category, 
-            period_type, period_value, total_mi, total_sat, total_invoice
+            period_type, period_value, total_mi, total_sat, total_lumpsum_invoice, total_pmpm_invoice
         )
         SELECT 
             project, discom, zone, circle, division, subdivision, 
@@ -830,9 +830,10 @@ def execute_kpi_11_mi_sat_invoice(engine):
                 END
             ) as connection_type,
             'monthly', TO_CHAR(DATE_TRUNC('month', mi_date), 'DD-MM-YY'),
-            COUNT(*) as total_mi,
+            COUNT(*) FILTER (WHERE sat_no IS NOT NULL AND TRIM(sat_no) != '') as total_mi,
             COUNT(*) FILTER (WHERE sat_date IS NOT NULL) as total_sat,
-            COUNT(*) FILTER (WHERE lumpsum_invoice_date IS NOT NULL OR pmpm_invoice_date IS NOT NULL) as total_invoice
+            COUNT(*) FILTER (WHERE lumpsum_invoice_date IS NOT NULL) as total_lumpsum_invoice,
+            COUNT(*) FILTER (WHERE pmpm_invoice_date IS NOT NULL) as total_pmpm_invoice
         FROM unified_installation_inventory_data
         WHERE mi_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
