@@ -1081,7 +1081,8 @@ Dashboard for Non-SAT Ageing with ageing bucket distributions, category breakdow
 
 **Behavior Notes**
 
-- Ageing buckets are cumulative: `age_gt_30` = count of meters where `ageing_days > 30` (and similarly for 60, 90, 120).
+- **Ageing buckets**: Discrete buckets (`age_0_30`, `age_31_60`, `age_61_90`, `age_91_120`, `age_120_plus`).
+- **Nesting**: In `summary` and `comparison`, each ageing bucket is an object containing counts for `CONSUMER`, `FEEDER`, `DT`, and a `total`.
 - If `project=all` and `level=discom`, the comparison chart returns **3 bars** for `KASHI`, `AGRA`, `TRIVENI`.
 - If `project=all` and `level` is `zone/circle/division/subdivision`, comparison labels are **prefixed** as `AGRA | <zone>` to avoid collisions across projects.
 - If `category=total`, the trend chart returns separate series for `CONSUMER`, `FEEDER`, and `DT`. Otherwise it returns the selected category series (others will be 0).
@@ -1092,20 +1093,29 @@ Dashboard for Non-SAT Ageing with ageing bucket distributions, category breakdow
 
 ```json
 {
-  "total_non_sat": 250000,
+  "total_non_sat": 882002,
   "category_breakdown": {
-    "CONSUMER": 120000,
-    "FEEDER": 80000,
-    "DT": 50000
+    "CONSUMER": 819605,
+    "FEEDER": 281,
+    "DT": 62116
+  },
+  "summary": {
+    "age_0_30": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+    "age_31_60": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+    "age_61_90": { "CONSUMER": 265000, "FEEDER": 100, "DT": 21344, "total": 286444 },
+    "age_91_120": { "CONSUMER": 275000, "FEEDER": 150, "DT": 23804, "total": 298954 },
+    "age_120_plus": { "CONSUMER": 279605, "FEEDER": 31, "DT": 16968, "total": 296604 },
+    "total_non_sat": 882002
   },
   "period_breakdown": [
     {
       "period_value": "16-03-26",
-      "age_gt_30": 5000,
-      "age_gt_60": 3000,
-      "age_gt_90": 1500,
-      "age_gt_120": 800,
-      "total_non_sat": 10000
+      "age_0_30": 0,
+      "age_31_60": 0,
+      "age_61_90": 5000,
+      "age_91_120": 3000,
+      "age_120_plus": 1500,
+      "total_non_sat": 9500
     }
   ],
   "comparison": [
@@ -1114,21 +1124,13 @@ Dashboard for Non-SAT Ageing with ageing bucket distributions, category breakdow
       "CONSUMER": 40000,
       "FEEDER": 25000,
       "DT": 15000,
-      "count": 80000
-    },
-    {
-      "label": "AGRA",
-      "CONSUMER": 50000,
-      "FEEDER": 30000,
-      "DT": 20000,
-      "count": 100000
-    },
-    {
-      "label": "TRIVENI",
-      "CONSUMER": 30000,
-      "FEEDER": 25000,
-      "DT": 15000,
-      "count": 70000
+      "count": 80000,
+      "age_0_30": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_31_60": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_61_90": { "CONSUMER": 12000, "FEEDER": 50, "DT": 3000, "total": 15050 },
+      "age_91_120": { "CONSUMER": 13000, "FEEDER": 100, "DT": 5000, "total": 18100 },
+      "age_120_plus": { "CONSUMER": 15000, "FEEDER": 20, "DT": 7000, "total": 22020 },
+      "total_non_sat": 80000
     }
   ]
 }
