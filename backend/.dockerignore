@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+venv/
+.git/
+.vscode/
+.idea/
+tests/
+scripts/
+data/
+logs/
+*.zip
+*.tar.gz

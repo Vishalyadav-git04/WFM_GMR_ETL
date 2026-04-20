@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from adapters.api.routes import mi, om
 
-ROOT_PATH = os.getenv("ROOT_PATH", "/mdms")
+ROOT_PATH = os.getenv("ROOT_PATH", "")
 
 app = FastAPI(
     title="Smart Meter Backend API",

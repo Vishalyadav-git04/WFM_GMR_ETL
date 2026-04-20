@@ -851,20 +851,42 @@ class SQLAlchemyMIRepository(IMIRepository):
                     
         comp_rows = q.with_entities(
             group_expr.label("label"),
+            StockAgeing.meter_category,
             func.sum(StockAgeing.age_0_30),
             func.sum(StockAgeing.age_31_60),
             func.sum(StockAgeing.age_61_90),
             func.sum(StockAgeing.age_90_plus)
-        ).group_by(group_expr).order_by("label").all()
+        ).group_by(group_expr, StockAgeing.meter_category).order_by("label").all()
 
-        comparison = []
+        comparison_map = {}
         for r in comp_rows:
-            a0, a31, a61, a90 = int(r[1] or 0), int(r[2] or 0), int(r[3] or 0), int(r[4] or 0)
-            comparison.append({
-                "label": str(r[0]),
-                "age_0_30": a0, "age_31_60": a31, "age_61_90": a61, "age_90_plus": a90,
-                "total_stock": a0 + a31 + a61 + a90
-            })
+            label = str(r[0])
+            cat = str(r[1]).upper() if r[1] else "UNKNOWN"
+            a0, a31, a61, a90 = [int(x or 0) for x in r[2:]]
+
+            if label not in comparison_map:
+                comparison_map[label] = {
+                    "label": label,
+                    "age_0_30": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_31_60": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_61_90": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_90_plus": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "total_stock": 0
+                }
+            
+            target = comparison_map[label]
+            buckets = [
+                ("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61), ("age_90_plus", a90)
+            ]
+            for b_key, b_val in buckets:
+                if cat in ("CONSUMER", "FEEDER", "DT"):
+                    target[b_key][cat] += b_val
+                target[b_key]["total"] += b_val
+            
+            target["total_stock"] += (a0 + a31 + a61 + a90)
+
+        comparison = list(comparison_map.values())
+        comparison.sort(key=lambda x: x["label"])
 
         return {
             "total_stock": total_stock,

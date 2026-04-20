@@ -11,6 +11,13 @@ from datetime import datetime, date
 
 # ── MI Schemas ───────────────────────────────────────────────────────────
 
+class AgeingBucketBreakdown(BaseModel):
+    CONSUMER: int = 0
+    FEEDER: int = 0
+    DT: int = 0
+    total: int = 0
+
+
 class MIDimensionBase(BaseModel):
     project: Optional[str] = Field(None, description="Project name")
     discom: Optional[str] = Field(None, description="Distribution Company name")
@@ -124,10 +131,10 @@ class StockAgeingPeriodTrendPoint(BaseModel):
 
 class StockAgeingComparisonItem(BaseModel):
     label: str
-    age_0_30: int = 0
-    age_31_60: int = 0
-    age_61_90: int = 0
-    age_90_plus: int = 0
+    age_0_30: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_31_60: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_61_90: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_90_plus: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
     total_stock: int = 0
 
 
@@ -200,11 +207,7 @@ class NonSATAgeingPeriodTrendPoint(BaseModel):
     total_non_sat: int = 0
 
 
-class AgeingBucketBreakdown(BaseModel):
-    CONSUMER: int = 0
-    FEEDER: int = 0
-    DT: int = 0
-    total: int = 0
+
 
 
 class NonSATAgeingComparisonItem(BaseModel):

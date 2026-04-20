@@ -838,26 +838,26 @@ Dashboard-optimized endpoint combining summary totals, time-series trend, compar
   "comparison": [
     {
       "label": "AGRA",
-      "age_0_30": 0,
-      "age_31_60": 0,
-      "age_61_90": 12000,
-      "age_90_plus": 50000,
+      "age_0_30": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_31_60": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_61_90": { "CONSUMER": 10000, "FEEDER": 1000, "DT": 1000, "total": 12000 },
+      "age_90_plus": { "CONSUMER": 45000, "FEEDER": 3000, "DT": 2000, "total": 50000 },
       "total_stock": 62000
     },
     {
       "label": "KASHI",
-      "age_0_30": 0,
-      "age_31_60": 0,
-      "age_61_90": 8000,
-      "age_90_plus": 35000,
+      "age_0_30": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_31_60": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_61_90": { "CONSUMER": 6000, "FEEDER": 1000, "DT": 1000, "total": 8000 },
+      "age_90_plus": { "CONSUMER": 30000, "FEEDER": 3000, "DT": 2000, "total": 35000 },
       "total_stock": 43000
     },
     {
       "label": "TRIVENI",
-      "age_0_30": 0,
-      "age_31_60": 0,
-      "age_61_90": 5000,
-      "age_90_plus": 25000,
+      "age_0_30": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_31_60": { "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0 },
+      "age_61_90": { "CONSUMER": 4000, "FEEDER": 500, "DT": 500, "total": 5000 },
+      "age_90_plus": { "CONSUMER": 22000, "FEEDER": 2000, "DT": 1000, "total": 25000 },
       "total_stock": 30000
     }
   ]
