@@ -444,55 +444,101 @@ def execute_kpi_9_meter_journey(engine):
     log.info("Executing SQL for MI KPI 9: Meter Journey Avg Time")
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE sql_meter_journey_avg_time CASCADE;"))
-        
-        sql = f"""
-        INSERT INTO sql_meter_journey_avg_time (
-            project, discom, zone, circle, division, subdivision, 
+
+        _mj_dims = """
+            project, discom, zone, circle, division, subdivision,
             substation, feeder, dtr, new_meter_type, meter_category,
-            di_to_gmr, gmr_to_agency, agency_to_sup, sup_to_install, 
-            install_to_sat, sat_to_revenue, total_journey
-        )
-        SELECT 
-            project, discom, zone, circle, division, subdivision, 
-            substation, feeder, dtr, metertype, 
+            period_type, period_value,
+            inventory_to_store, store_to_agency, agency_to_meter_installation,
+            meter_installation_to_sat, sat_to_invoice, invoice_to_revenue,
+            total_journey, meter_count
+        """
+        _mj_cat = """
             COALESCE(
                 UPPER(TRIM(connection_type)),
-                CASE 
+                CASE
                     WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
                     WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
-            ),
+            )
+        """
+        _mj_avgs = """
             AVG(gmrtoagencyts::date - didate::date),
             AVG(agencytosupts::date - gmrtoagencyts::date),
-            AVG(suptotechts::date - agencytosupts::date),
-            AVG(installedts::date - suptotechts::date),
+            AVG(installedts::date - agencytosupts::date),
             AVG(sat_date::date - installedts::date),
-            AVG(pmpm_collection_date::date - sat_date::date),
-            AVG(pmpm_collection_date::date - didate::date)
+            AVG(pmpm_invoice_date::date - sat_date::date),
+            AVG(pmpm_collection_date::date - pmpm_invoice_date::date),
+            AVG(pmpm_collection_date::date - didate::date),
+            COUNT(*)
+        """
+        _mj_where = """
         FROM unified_installation_inventory_data
         WHERE pmpm_collection_date IS NOT NULL
           AND sat_date <= (SELECT MAX(sat_date) FROM unified_installation_inventory_data)
-        GROUP BY 1,2,3,4,5,6,7,8,9,10,11;
         """
-        conn.execute(text(sql))
+
+        conn.execute(text(f"""
+        INSERT INTO sql_meter_journey_avg_time ({_mj_dims.strip()})
+        SELECT
+            project, discom, zone, circle, division, subdivision,
+            substation, feeder, dtr, metertype,
+            {_mj_cat.strip()},
+            'weekly', TO_CHAR(DATE_TRUNC('week', pmpm_collection_date::timestamp), 'DD-MM-YY'),
+            {_mj_avgs.strip()}
+        {_mj_where.strip()}
+        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
+        """))
+
+        conn.execute(text(f"""
+        INSERT INTO sql_meter_journey_avg_time ({_mj_dims.strip()})
+        SELECT
+            project, discom, zone, circle, division, subdivision,
+            substation, feeder, dtr, metertype,
+            {_mj_cat.strip()},
+            'monthly', TO_CHAR(DATE_TRUNC('month', pmpm_collection_date::timestamp), 'DD-MM-YY'),
+            {_mj_avgs.strip()}
+        {_mj_where.strip()}
+        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
+        """))
+
+        conn.execute(text(f"""
+        INSERT INTO sql_meter_journey_avg_time ({_mj_dims.strip()})
+        SELECT
+            project, discom, zone, circle, division, subdivision,
+            substation, feeder, dtr, metertype,
+            {_mj_cat.strip()},
+            'daily', TO_CHAR(pmpm_collection_date::date, 'DD-MM-YY'),
+            {_mj_avgs.strip()}
+        {_mj_where.strip()}
+        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
+        """))
 
 
 def execute_kpi_10_meter_stage(engine):
-    """Executes KPI 10 (Meter Current Stage) directly in the database."""
-    log.info("Executing SQL for MI KPI 10: Meter Current Stage")
+    """Populates sql_meter_current_stage with pre-aggregated funnel metrics (Inventory → Installed → SAT → Revenue)."""
+    log.info("Executing ETL for KPI 10: Meter Funnel Summary")
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE sql_meter_current_stage CASCADE;"))
         
-        sql = f"""
+        sql = """
         INSERT INTO sql_meter_current_stage (
-            project, discom, zone, circle, division, subdivision, 
+            project, discom, zone, circle, division, subdivision,
             substation, feeder, dtr, new_meter_type, meter_category,
-            current_stage, meter_count
+            inventory, installed, sat_done, revenue_collected
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, 
-            substation, feeder, dtr, metertype, 
+            UPPER(TRIM(project)) as project,
+            discom, 
+            zone, 
+            circle, 
+            division, 
+            subdivision,
+            substation, 
+            feeder, 
+            dtr,
+            metertype as new_meter_type,
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
@@ -500,23 +546,26 @@ def execute_kpi_10_meter_stage(engine):
                     WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
-            ),
-            CASE
-                WHEN didate IS NOT NULL AND gmrtoagencyts IS NULL THEN 'At GMR Warehouse'
-                WHEN gmrtoagencyts IS NOT NULL AND agencytosupts IS NULL THEN 'With Agency'
-                WHEN agencytosupts IS NOT NULL AND suptotechts IS NULL THEN 'With Supervisor'
-                WHEN suptotechts IS NOT NULL AND installedts IS NULL THEN 'With Technician'
-                WHEN installedts IS NOT NULL AND sat_date IS NULL THEN 'Installed Pending SAT'
-                WHEN sat_date IS NOT NULL AND pmpm_collection_date IS NULL THEN 'SAT Done - Revenue Pending'
-                ELSE 'Unknown'
-            END as current_stage_val,
-            COUNT(*)
+            ) as meter_category,
+            COUNT(*) as inventory,
+            COUNT(*) FILTER (WHERE mi_date IS NOT NULL AND sat_no IS NOT NULL AND TRIM(sat_no) != '') as installed,
+            COUNT(*) FILTER (WHERE sat_date IS NOT NULL) as sat_done,
+            COUNT(*) FILTER (WHERE pmpm_collection_date IS NOT NULL) as revenue_collected
         FROM unified_installation_inventory_data
-        WHERE pmpm_collection_date IS NULL
-          AND sat_date <= (SELECT MAX(sat_date) FROM unified_installation_inventory_data)
-        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12;
+        GROUP BY 
+            UPPER(TRIM(project)), discom, zone, circle, division, subdivision,
+            substation, feeder, dtr, metertype,
+            COALESCE(
+                UPPER(TRIM(connection_type)),
+                CASE 
+                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    ELSE 'CONSUMER'
+                END
+            );
         """
         conn.execute(text(sql))
+        log.info("KPI 10 Funnel Summary ETL completed")
 
 
 def execute_command_center_kpi(engine):
@@ -799,25 +848,42 @@ def execute_kpi_12_revenue_realized(engine):
         
         sql = f"""
         INSERT INTO sql_revenue_realized (
-            project, discom, zone, circle, division, subdivision, 
-            substation, feeder, dtr, new_meter_type, meter_category, 
-            period_type, period_value, total_realized
+            project, discom, zone, circle, division, subdivision,
+            substation, feeder, dtr, new_meter_type, meter_category,
+            period_type, period_value,
+            total_lumpsum_invoice, total_pmpm_invoice,
+            total_lumpsum_collection, total_pmpm_collection
         )
-        SELECT 
-            project, discom, zone, circle, division, subdivision, 
-            substation, feeder, dtr, metertype, 
+        SELECT
+            project, discom, zone, circle, division, subdivision,
+            substation, feeder, dtr, metertype,
             COALESCE(
                 UPPER(TRIM(connection_type)),
-                CASE 
+                CASE
                     WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
                     WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
-            'monthly', TO_CHAR(DATE_TRUNC('month', COALESCE(lumpsum_collection_date, pmpm_collection_date)), 'DD-MM-YY'),
-            COUNT(*)
+            'monthly' as period_type,
+            TO_CHAR(
+                COALESCE(
+                    DATE_TRUNC('month', lumpsum_collection_date),
+                    DATE_TRUNC('month', pmpm_collection_date),
+                    DATE_TRUNC('month', lumpsum_invoice_date),
+                    DATE_TRUNC('month', pmpm_invoice_date)
+                ),
+                'DD-MM-YY'
+            ) as period_value,
+            COUNT(*) FILTER (WHERE lumpsum_invoice_date IS NOT NULL) as total_lumpsum_invoice,
+            COUNT(*) FILTER (WHERE pmpm_invoice_date IS NOT NULL) as total_pmpm_invoice,
+            COUNT(*) FILTER (WHERE lumpsum_collection_date IS NOT NULL) as total_lumpsum_collection,
+            COUNT(*) FILTER (WHERE pmpm_collection_date IS NOT NULL) as total_pmpm_collection
         FROM unified_installation_inventory_data
-        WHERE lumpsum_collection_date IS NOT NULL OR pmpm_collection_date IS NOT NULL
+        WHERE lumpsum_invoice_date IS NOT NULL
+           OR pmpm_invoice_date IS NOT NULL
+           OR lumpsum_collection_date IS NOT NULL
+           OR pmpm_collection_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
         """
         conn.execute(text(sql))

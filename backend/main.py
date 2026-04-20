@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from adapters.api.routes import mi, om, dashboard
+from adapters.api.routes import mi, om
 
 ROOT_PATH = os.getenv("ROOT_PATH", "/mdms")
 
@@ -28,7 +28,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(dashboard.router)
 app.include_router(mi.router)
 app.include_router(om.router)
 

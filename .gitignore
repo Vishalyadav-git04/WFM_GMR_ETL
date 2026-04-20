@@ -41,3 +41,5 @@ schema_check.py
 .mcp.json
 .opencode.json
 *.md
+test_db.py
+.kilo/

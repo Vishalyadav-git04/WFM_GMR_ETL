@@ -79,19 +79,25 @@ class SqlNonSATAgeing(MIDimensionMixin, Base):
 
 class SqlMeterJourneyAvgTime(MIDimensionMixin, Base):
     __tablename__ = "sql_meter_journey_avg_time"
-    di_to_gmr = Column(Float)
-    gmr_to_agency = Column(Float)
-    agency_to_sup = Column(Float)
-    sup_to_install = Column(Float)
-    install_to_sat = Column(Float)
-    sat_to_revenue = Column(Float)
+    period_type = Column(String(20))
+    period_value = Column(String(50))
+    inventory_to_store = Column(Float)
+    store_to_agency = Column(Float)
+    agency_to_meter_installation = Column(Float)
+    meter_installation_to_sat = Column(Float)
+    sat_to_invoice = Column(Float)
+    invoice_to_revenue = Column(Float)
     total_journey = Column(Float)
+    meter_count = Column(BigInteger)
 
 
 class SqlMeterCurrentStage(MIDimensionMixin, Base):
     __tablename__ = "sql_meter_current_stage"
-    current_stage = Column(String(100))
-    meter_count = Column(BigInteger)
+    # Pre-aggregated funnel metrics (replaces stage-based columns)
+    inventory = Column(BigInteger, nullable=False, default=0)
+    installed = Column(BigInteger, nullable=False, default=0)
+    sat_done = Column(BigInteger, nullable=False, default=0)
+    revenue_collected = Column(BigInteger, nullable=False, default=0)
 
 
 # ── Dashboard Command Center Tables ───────────────────────────────────────

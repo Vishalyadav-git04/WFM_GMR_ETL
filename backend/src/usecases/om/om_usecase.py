@@ -20,17 +20,3 @@ class OMUseCase:
 
     def get_closed_analysis(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.om_repo.get_closed_analysis(filters, limit, offset)
-
-    def get_dashboard_metrics(self, filters: Dict[str, Any]) -> Dict[str, Any]:
-        """Gets high-level O&M metrics for the dashboard."""
-        open_tickets = self.om_repo.get_open_complaints_count(filters)
-        avg_closure = self.om_repo.get_avg_closure_time_metric(filters)
-        return {
-            "total_open_complaints": open_tickets,
-            "avg_closure_time_days": round(avg_closure, 2)
-        }
-
-    def run_om_etl(self, df_complaints: Any):
-        """Orchestrates O&M ETL."""
-        # Process and save productivity team, trend, etc.
-        pass

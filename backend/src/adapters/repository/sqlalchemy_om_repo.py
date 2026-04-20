@@ -71,22 +71,7 @@ class SQLAlchemyOMRepository(IOMRepository):
         q = q.filter(OMClosedAnalysis.period_type == period.lower())
         return q.offset(offset).limit(limit).all()
 
-    def get_open_complaints_count(self, filters: Dict[str, Any]) -> int:
-        q = self.session.query(func.count(ComplaintsMaster.ticket_id))
-        q = self._apply_filters(q, ComplaintsMaster, filters)
-        q = q.filter(ComplaintsMaster.complaint_status != 'Closed')
-        return q.scalar() or 0
 
-    def get_avg_closure_time_metric(self, filters: Dict[str, Any]) -> float:
-        # Calculate avg closure time in days from ComplaintsMaster
-        q = self.session.query(func.avg(
-            func.extract('epoch', (ComplaintsMaster.closed_date - ComplaintsMaster.created_date)) / 86400.0
-        ))
-        q = self._apply_filters(q, ComplaintsMaster, filters)
-        q = q.filter(ComplaintsMaster.complaint_status == 'Closed')
-        q = q.filter(ComplaintsMaster.closed_date.isnot(None))
-        q = q.filter(ComplaintsMaster.created_date.isnot(None))
-        return float(q.scalar() or 0.0)
 
     def save_productivity_team(self, entities: List[OMProductivityTeamEntity]):
         pass

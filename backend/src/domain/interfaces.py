@@ -11,11 +11,11 @@ class IMIRepository(ABC):
     @abstractmethod
     def save_mi_progress(self, items: List[MIProgressEntity]): pass
     
-    @abstractmethod
-    def get_mi_progress(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
+
+
 
     @abstractmethod
-    def get_mi_progress_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+    def get_mi_progress_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
     
     @abstractmethod
     def get_monthly_productivity(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
@@ -42,16 +42,23 @@ class IMIRepository(ABC):
     def get_mi_vs_sat_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
 
     @abstractmethod
-    def get_stock_ageing(self, limit: int, offset: int) -> List[Any]: pass
+    def get_stock_ageing_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
 
     @abstractmethod
     def get_non_sat_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
 
     @abstractmethod
+    def get_non_sat_ageing_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
+
+    @abstractmethod
     def get_meter_journey(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
 
     @abstractmethod
-    def get_meter_stage(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
+    def get_meter_journey_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def get_meter_stage_dashboard(self, filters: Dict[str, Any], limit: int, offset: int) -> Dict[str, Any]: pass
 
     @abstractmethod
     def get_command_center_dashboard(self, project: str) -> Dict[str, Any]: pass
@@ -75,11 +82,9 @@ class IOMRepository(ABC):
     @abstractmethod
     def get_closed_analysis(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
 
-    @abstractmethod
-    def get_open_complaints_count(self, filters: Dict[str, Any]) -> int: pass
+
     
-    @abstractmethod
-    def get_avg_closure_time_metric(self, filters: Dict[str, Any]) -> float: pass
+
 
 class IETLRepository(ABC):
     @abstractmethod

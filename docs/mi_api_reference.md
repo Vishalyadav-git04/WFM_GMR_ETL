@@ -77,10 +77,14 @@ Compares Meter Installation progress against SAT (Site Acceptance Test) progress
 
 ### 8. Non-SAT Ageing (KPI 8)
 Tracks meters that are installed but have no recorded SAT mapping.
-- **Endpoint**: `/api/mi/non-sat-ageing`
-- **Description**: Returns detailed list of non-SAT meters with their installation date and current ageing (days since installation). Supports all standard MI dimension filters.
-- **Test URL (Filtered by Project)**:
-  `http://127.0.0.1:8000/api/mi/non-sat-ageing?project=kashi`
+- **Detail Endpoint**: `/api/mi/non-sat-ageing`
+- **Dashboard Endpoint**: `/api/mi/non-sat-ageing/dashboard`
+- **Description**: 
+  - Detail: Returns list of non-SAT meters with installation date and ageing (days since installation).
+  - Dashboard: Aggregated metrics with ageing buckets (>30, >60, >90, >120 days), category breakdown (CONSUMER/FEEDER/DT), trend over installation periods, and hierarchical comparison (like MI Progress dashboard). Supports all standard MI dimension filters.
+- **Test URLs**:
+  - Detail: `http://127.0.0.1:8000/api/mi/non-sat-ageing?project=kashi`
+  - Dashboard: `http://127.0.0.1:8000/api/mi/non-sat-ageing/dashboard?duration=monthly&project=all`
 
 ---
 

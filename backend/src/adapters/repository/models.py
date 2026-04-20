@@ -4,7 +4,7 @@ SQLAlchemy ORM models for KPI result tables.
 
 from sqlalchemy import (
     Column, Integer, BigInteger, Float, String, Date, DateTime, Text,
-    func,
+    UniqueConstraint, func,
 )
 from sqlalchemy.orm import declarative_base
 
@@ -97,9 +97,12 @@ class MIvsSATvsInvoice(MIDimensionMixin, Base):
 
 class RevenueRealized(MIDimensionMixin, Base):
     __tablename__ = "sql_revenue_realized"
-    period_type = Column(String(10))   # monthly
-    period_value = Column(String(50))  # the date string (collection month)
-    total_realized = Column(BigInteger)
+    period_type = Column(String(10))   # daily, weekly, monthly
+    period_value = Column(String(50))  # the date string (period bucket)
+    total_lumpsum_invoice = Column(BigInteger)
+    total_pmpm_invoice = Column(BigInteger)
+    total_lumpsum_collection = Column(BigInteger)
+    total_pmpm_collection = Column(BigInteger)
 
 
 class RevenueAgeing(MIDimensionMixin, Base):
@@ -140,19 +143,25 @@ class NonSATAgeing(MIDimensionMixin, Base):
 
 class MeterJourneyAvgTime(MIDimensionMixin, Base):
     __tablename__ = "sql_meter_journey_avg_time"
-    di_to_gmr = Column(Float)
-    gmr_to_agency = Column(Float)
-    agency_to_sup = Column(Float)
-    sup_to_install = Column(Float)
-    install_to_sat = Column(Float)
-    sat_to_revenue = Column(Float)
+    period_type = Column(String(20))
+    period_value = Column(String(50))
+    inventory_to_store = Column(Float)
+    store_to_agency = Column(Float)
+    agency_to_meter_installation = Column(Float)
+    meter_installation_to_sat = Column(Float)
+    sat_to_invoice = Column(Float)
+    invoice_to_revenue = Column(Float)
     total_journey = Column(Float)
+    meter_count = Column(BigInteger)
 
 
 class MeterCurrentStage(MIDimensionMixin, Base):
     __tablename__ = "sql_meter_current_stage"
-    current_stage = Column(String(100))
-    meter_count = Column(BigInteger)
+    # Pre-aggregated funnel metrics
+    inventory = Column(BigInteger, nullable=False, default=0)
+    installed = Column(BigInteger, nullable=False, default=0)
+    sat_done = Column(BigInteger, nullable=False, default=0)
+    revenue_collected = Column(BigInteger, nullable=False, default=0)
 
 
 class DefectiveMeters(MIDimensionMixin, Base):
