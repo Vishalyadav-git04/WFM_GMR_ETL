@@ -200,26 +200,33 @@ class NonSATAgeingPeriodTrendPoint(BaseModel):
     total_non_sat: int = 0
 
 
+class AgeingBucketBreakdown(BaseModel):
+    CONSUMER: int = 0
+    FEEDER: int = 0
+    DT: int = 0
+    total: int = 0
+
+
 class NonSATAgeingComparisonItem(BaseModel):
     label: str
     CONSUMER: int = 0
     FEEDER: int = 0
     DT: int = 0
     count: int = 0
-    age_0_30: int = 0
-    age_31_60: int = 0
-    age_61_90: int = 0
-    age_91_120: int = 0
-    age_120_plus: int = 0
+    age_0_30: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_31_60: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_61_90: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_91_120: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_120_plus: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
     total_non_sat: int = 0
 
 
 class NonSATAgeingSummary(BaseModel):
-    age_0_30: int = 0
-    age_31_60: int = 0
-    age_61_90: int = 0
-    age_91_120: int = 0
-    age_120_plus: int = 0
+    age_0_30: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_31_60: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_61_90: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_91_120: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
+    age_120_plus: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
     total_non_sat: int = 0
 
 

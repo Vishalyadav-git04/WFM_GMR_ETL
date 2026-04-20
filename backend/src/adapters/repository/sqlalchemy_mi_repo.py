@@ -966,24 +966,39 @@ class SQLAlchemyMIRepository(IMIRepository):
                 "total_non_sat": int(r[6] or 0)
             })
 
-        # Summary calculation
-        s_res = q.with_entities(
+        # Summary calculation - group by category to get breakdown per bucket
+        s_rows = q.with_entities(
+            NonSATAgeing.meter_category,
             func.sum(case((NonSATAgeing.ageing_days <= 30, 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 30) & (NonSATAgeing.ageing_days <= 60), 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 60) & (NonSATAgeing.ageing_days <= 90), 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 90) & (NonSATAgeing.ageing_days <= 120), 1), else_=0)),
             func.sum(case((NonSATAgeing.ageing_days > 120, 1), else_=0)),
             func.count(NonSATAgeing.meter_serial_number)
-        ).first()
+        ).group_by(NonSATAgeing.meter_category).all()
 
         summary = {
-            "age_0_30": int(s_res[0] or 0),
-            "age_31_60": int(s_res[1] or 0),
-            "age_61_90": int(s_res[2] or 0),
-            "age_91_120": int(s_res[3] or 0),
-            "age_120_plus": int(s_res[4] or 0),
-            "total_non_sat": int(s_res[5] or 0)
+            "age_0_30": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+            "age_31_60": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+            "age_61_90": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+            "age_91_120": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+            "age_120_plus": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+            "total_non_sat": 0
         }
+
+        for r in s_rows:
+            cat = str(r[0]).upper() if r[0] else "UNKNOWN"
+            a0, a31, a61, a91, a120, cnt = [int(x or 0) for x in r[1:]]
+            
+            buckets = [
+                ("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61),
+                ("age_91_120", a91), ("age_120_plus", a120)
+            ]
+            for b_key, b_val in buckets:
+                if cat in ("CONSUMER", "FEEDER", "DT"):
+                    summary[b_key][cat] += b_val
+                summary[b_key]["total"] += b_val
+            summary["total_non_sat"] += cnt
 
         # Comparison
         if level == "discom" and project == "all":
@@ -1013,44 +1028,37 @@ class SQLAlchemyMIRepository(IMIRepository):
         for r in comp_rows:
             label = str(r[0])
             cat = str(r[1]).upper() if r[1] else "UNKNOWN"
-            a0_30 = int(r[2] or 0)
-            a31_60 = int(r[3] or 0)
-            a61_90 = int(r[4] or 0)
-            a91_120 = int(r[5] or 0)
-            a120_p = int(r[6] or 0)
-            cnt = int(r[7] or 0)
+            a0, a31, a61, a91, a120, cnt = [int(x or 0) for x in r[2:]]
 
             if label not in comparison_map:
                 comparison_map[label] = {
-                    "CONSUMER": 0, "FEEDER": 0, "DT": 0,
-                    "age_0_30": 0, "age_31_60": 0, "age_61_90": 0, "age_91_120": 0, "age_120_plus": 0, "total_non_sat": 0
+                    "label": label,
+                    "CONSUMER": 0, "FEEDER": 0, "DT": 0, "count": 0,
+                    "age_0_30": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_31_60": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_61_90": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_91_120": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_120_plus": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "total_non_sat": 0
                 }
             
+            target = comparison_map[label]
             if cat in ("CONSUMER", "FEEDER", "DT"):
-                comparison_map[label][cat] += cnt
+                target[cat] += cnt
             
-            comparison_map[label]["age_0_30"] += a0_30
-            comparison_map[label]["age_31_60"] += a31_60
-            comparison_map[label]["age_61_90"] += a61_90
-            comparison_map[label]["age_91_120"] += a91_120
-            comparison_map[label]["age_120_plus"] += a120_p
-            comparison_map[label]["total_non_sat"] += cnt
+            target["count"] += cnt
+            target["total_non_sat"] += cnt
+
+            buckets = [
+                ("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61),
+                ("age_91_120", a91), ("age_120_plus", a120)
+            ]
+            for b_key, b_val in buckets:
+                if cat in ("CONSUMER", "FEEDER", "DT"):
+                    target[b_key][cat] += b_val
+                target[b_key]["total"] += b_val
                 
-        comparison = []
-        for label, data in sorted(comparison_map.items()):
-            comparison.append({
-                "label": label,
-                "CONSUMER": data["CONSUMER"],
-                "FEEDER": data["FEEDER"],
-                "DT": data["DT"],
-                "count": data["total_non_sat"],
-                "age_0_30": data["age_0_30"],
-                "age_31_60": data["age_31_60"],
-                "age_61_90": data["age_61_90"],
-                "age_91_120": data["age_91_120"],
-                "age_120_plus": data["age_120_plus"],
-                "total_non_sat": data["total_non_sat"]
-            })
+        comparison = [v for k, v in sorted(comparison_map.items())]
 
         return {
             "total_non_sat": total_non_sat,
