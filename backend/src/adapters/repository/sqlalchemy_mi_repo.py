@@ -440,13 +440,12 @@ class SQLAlchemyMIRepository(IMIRepository):
             group_expr = func.upper(func.trim(InventoryUtilization.project))
         else:
             if not hasattr(InventoryUtilization, level):
-                group_expr = func.upper(func.trim(InventoryUtilization.project))
+                level = "discom"
+            level_col = getattr(InventoryUtilization, level)
+            if project == "all" and level != "discom":
+                group_expr = func.concat(func.upper(func.trim(InventoryUtilization.project)), " | ", func.coalesce(level_col, "Unknown"))
             else:
-                level_col = getattr(InventoryUtilization, level)
-                if project == "all" and level != "discom":
-                    group_expr = func.concat(func.upper(func.trim(InventoryUtilization.project)), " | ", func.coalesce(level_col, "Unknown"))
-                else:
-                    group_expr = func.coalesce(level_col, "Unknown")
+                group_expr = func.coalesce(level_col, "Unknown")
                     
         comp_rows = q.with_entities(
             group_expr.label("label"),
@@ -627,18 +626,20 @@ class SQLAlchemyMIRepository(IMIRepository):
         comparison: List[Dict[str, Any]] = []
         comparison_map: Dict[str, Dict[str, Dict[str, int]]] = {}
 
-        # Determine grouping
+        # Determine grouping columns based on level and project
         if level == "discom" and project == "all":
+            # Special case: compare the 3 projects - group by project only
             group_expr = func.upper(func.trim(MIvsSAT.project))
         else:
             if not hasattr(MIvsSAT, level):
-                group_expr = func.upper(func.trim(MIvsSAT.project))
+                level = "discom"
+            level_col = getattr(MIvsSAT, level)
+            if project == "all" and level != "discom":
+                # Composite label: "PROJECT | LevelName"
+                group_expr = func.concat(func.upper(func.trim(MIvsSAT.project)), " | ", func.coalesce(level_col, "Unknown"))
             else:
-                level_col = getattr(MIvsSAT, level)
-                if project == "all" and level != "discom":
-                    group_expr = func.concat(func.upper(func.trim(MIvsSAT.project)), " | ", func.coalesce(level_col, "Unknown"))
-                else:
-                    group_expr = func.coalesce(level_col, "Unknown")
+                # Single-level grouping (by level or project)
+                group_expr = func.coalesce(level_col, "Unknown")
 
         comp_rows = q.with_entities(
             group_expr.label("label"),
@@ -841,13 +842,12 @@ class SQLAlchemyMIRepository(IMIRepository):
             group_expr = func.upper(func.trim(StockAgeing.project))
         else:
             if not hasattr(StockAgeing, level):
-                group_expr = func.upper(func.trim(StockAgeing.project))
+                level = "discom"
+            level_col = getattr(StockAgeing, level)
+            if project == "all" and level != "discom":
+                group_expr = func.concat(func.upper(func.trim(StockAgeing.project)), " | ", func.coalesce(level_col, "Unknown"))
             else:
-                level_col = getattr(StockAgeing, level)
-                if project == "all" and level != "discom":
-                    group_expr = func.concat(func.upper(func.trim(StockAgeing.project)), " | ", func.coalesce(level_col, "Unknown"))
-                else:
-                    group_expr = func.coalesce(level_col, "Unknown")
+                group_expr = func.coalesce(level_col, "Unknown")
                     
         comp_rows = q.with_entities(
             group_expr.label("label"),
@@ -1027,13 +1027,12 @@ class SQLAlchemyMIRepository(IMIRepository):
             group_expr = func.upper(func.trim(NonSATAgeing.project))
         else:
             if not hasattr(NonSATAgeing, level):
-                group_expr = func.upper(func.trim(NonSATAgeing.project))
+                level = "discom"
+            level_col = getattr(NonSATAgeing, level)
+            if project == "all" and level != "discom":
+                group_expr = func.concat(func.upper(func.trim(NonSATAgeing.project)), " | ", func.coalesce(level_col, "Unknown"))
             else:
-                level_col = getattr(NonSATAgeing, level)
-                if project == "all" and level != "discom":
-                    group_expr = func.concat(func.upper(func.trim(NonSATAgeing.project)), " | ", func.coalesce(level_col, "Unknown"))
-                else:
-                    group_expr = func.coalesce(level_col, "Unknown")
+                group_expr = func.coalesce(level_col, "Unknown")
                     
         comp_rows = q.with_entities(
             group_expr.label("label"),
@@ -1168,7 +1167,12 @@ class SQLAlchemyMIRepository(IMIRepository):
         if level == "discom" and project == "all":
             return proj_upper
         level_col = getattr(M, level)
-        if project == "all" and level != "discom":
+        if project != "all":
+            # Specific project: group by level (discom→discom only; non-discom→project|level)
+            if level == "discom":
+                return func.coalesce(level_col, "Unknown")
+            return func.concat(proj_upper, " | ", func.coalesce(level_col, "Unknown"))
+        if level != "discom":
             return func.concat(proj_upper, " | ", func.coalesce(level_col, "Unknown"))
         return func.coalesce(level_col, "Unknown")
 
