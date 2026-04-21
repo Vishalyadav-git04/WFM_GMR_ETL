@@ -938,7 +938,7 @@ def execute_kpi_13_revenue_ageing(engine):
 def execute_kpi_14_defective_meters(engine):
     """
     KPI 14: Defective Meters.
-    Categorizes complaints from complaints_master into Meter Burnt, Meter Faulty, and Others.
+    Categorizes complaints from unified_complaints into Meter Burnt, Meter Faulty, and Others.
     """
     from sqlalchemy import text
     with engine.begin() as conn:
@@ -952,11 +952,15 @@ def execute_kpi_14_defective_meters(engine):
         )
         WITH cleaned_complaints AS (
             SELECT 
-                project, discom, zone, circle, division, subdivision, 
+                project, discom, zone, circle, division, sub_division as subdivision,
                 feeder, dtr, meter_category, old_smart_meter_number,
                 TRIM(REPLACE(REPLACE(complaint_type, '"', ''), CHR(160), ' ')) as clean_type,
                 created_date
-            FROM complaints_master
+            FROM unified_complaints
+            WHERE old_smart_meter_number IS NOT NULL 
+              AND TRIM(old_smart_meter_number) != ''
+              AND new_smart_meter_number IS NOT NULL 
+              AND TRIM(new_smart_meter_number) != ''
         ),
         categorized AS (
             SELECT 
@@ -973,14 +977,19 @@ def execute_kpi_14_defective_meters(engine):
                 c.*, 
                 COALESCE(inv.substation, 'Unknown') as substation_inv,
                 COALESCE(inv.metertype, 'Unknown') as metertype_inv,
-                COALESCE(
-                    UPPER(TRIM(c.meter_category)),
-                    CASE 
-                        WHEN inv.metertype = '3PLTCTSM' AND (inv.consumer_name IS NULL OR TRIM(inv.consumer_name) = '') THEN 'DT'
-                        WHEN inv.metertype = 'HTCTPTSM' AND (inv.consumer_name IS NULL OR TRIM(inv.consumer_name) = '') THEN 'FEEDER'
-                        ELSE 'CONSUMER'
-                    END
-                ) as refined_category
+                CASE 
+                    WHEN c.meter_category IS NOT NULL AND TRIM(c.meter_category) != '' THEN 
+                        CASE 
+                            WHEN UPPER(TRIM(c.meter_category)) = 'DTR' THEN 'DT'
+                            ELSE UPPER(TRIM(c.meter_category))
+                        END
+                    ELSE 
+                        CASE 
+                            WHEN inv.metertype = '3PLTCTSM' AND (inv.consumer_name IS NULL OR TRIM(inv.consumer_name) = '') THEN 'DT'
+                            WHEN inv.metertype = 'HTCTPTSM' AND (inv.consumer_name IS NULL OR TRIM(inv.consumer_name) = '') THEN 'FEEDER'
+                            ELSE 'CONSUMER'
+                        END
+                END as refined_category
             FROM categorized c
             LEFT JOIN unified_installation_inventory_data inv ON c.old_smart_meter_number = inv.meterserialnumber
         )

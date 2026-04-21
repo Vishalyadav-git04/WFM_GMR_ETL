@@ -1167,14 +1167,10 @@ class SQLAlchemyMIRepository(IMIRepository):
         if level == "discom" and project == "all":
             return proj_upper
         level_col = getattr(M, level)
-        if project != "all":
-            # Specific project: group by level (discom→discom only; non-discom→project|level)
-            if level == "discom":
-                return func.coalesce(level_col, "Unknown")
+        if project == "all" and level != "discom":
             return func.concat(proj_upper, " | ", func.coalesce(level_col, "Unknown"))
-        if level != "discom":
-            return func.concat(proj_upper, " | ", func.coalesce(level_col, "Unknown"))
-        return func.coalesce(level_col, "Unknown")
+        else:
+            return func.coalesce(level_col, "Unknown")
 
     def get_meter_journey_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -1890,6 +1886,13 @@ class SQLAlchemyMIRepository(IMIRepository):
         base_filters.pop("period", None)
         base_filters.pop("level", None)
         base_filters.pop("project", None)
+        
+        # Handle category alias
+        if "category" in base_filters:
+            if not base_filters.get("meter_category"):
+                base_filters["meter_category"] = base_filters.pop("category")
+            else:
+                base_filters.pop("category")
         
         q = self._apply_filters(q, DefectiveMeters, base_filters)
         

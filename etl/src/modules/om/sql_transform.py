@@ -21,9 +21,10 @@ def execute_om_productivity_team(engine):
             technician, agency, period_type, period_value, closed_tickets
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, NULL, feeder, dtr, meter_category,
+            project, discom, zone, circle, division, 
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             technician, agency, 'daily', TO_CHAR(closed_date, 'DD-MM-YY'), COUNT(*)
-        FROM complaints_master
+        FROM unified_complaints
         WHERE closed_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14;
         """))
@@ -35,9 +36,10 @@ def execute_om_productivity_team(engine):
             technician, agency, period_type, period_value, closed_tickets
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, NULL, feeder, dtr, meter_category,
+            project, discom, zone, circle, division, 
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             technician, agency, 'weekly', TO_CHAR(DATE_TRUNC('week', closed_date), 'DD-MM-YY'), COUNT(*)
-        FROM complaints_master
+        FROM unified_complaints
         WHERE closed_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14;
         """))
@@ -49,9 +51,10 @@ def execute_om_productivity_team(engine):
             technician, agency, period_type, period_value, closed_tickets
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, NULL, feeder, dtr, meter_category,
+            project, discom, zone, circle, division, 
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             technician, agency, 'monthly', TO_CHAR(DATE_TRUNC('month', closed_date), 'DD-MM-YY'), COUNT(*)
-        FROM complaints_master
+        FROM unified_complaints
         WHERE closed_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14;
         """))
@@ -67,9 +70,10 @@ def execute_om_productivity_trend(engine):
             closed_month, total_closed_tickets
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, NULL, feeder, dtr, meter_category,
+            project, discom, zone, circle, division, 
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             TO_CHAR(DATE_TRUNC('month', closed_date), 'DD-MM-YY'), COUNT(*)
-        FROM complaints_master
+        FROM unified_complaints
         WHERE closed_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11;
         """))
@@ -85,11 +89,12 @@ def execute_om_open_ageing(engine):
             ticket_id, created_date, ageing_days, technician, agency
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, NULL, feeder, dtr, meter_category,
+            project, discom, zone, circle, division, 
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             ticket_id, created_date, 
             EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_date))/86400.0,
             technician, agency
-        FROM complaints_master
+        FROM unified_complaints
         WHERE closed_date IS NULL;
         """))
 
@@ -106,10 +111,11 @@ def execute_om_avg_closure_time(engine):
             period_type, period_value_created, period_value_closed, avg_resolution_days
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, NULL, feeder, dtr, meter_category,
+            project, discom, zone, circle, division, 
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             'daily', TO_CHAR(created_date, 'DD-MM-YY'), TO_CHAR(closed_date, 'DD-MM-YY'),
             AVG(EXTRACT(EPOCH FROM (closed_date - created_date))/86400.0)
-        FROM complaints_master
+        FROM unified_complaints
         WHERE closed_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
         """))
@@ -127,9 +133,10 @@ def execute_om_closed_analysis(engine):
             complaint_type, complaint_category, period_type, period_value, closed_tickets
         )
         SELECT 
-            project, discom, zone, circle, division, subdivision, NULL, feeder, dtr, meter_category,
+            project, discom, zone, circle, division, 
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             complaint_type, complaint_category, 'daily', TO_CHAR(closed_date, 'DD-MM-YY'), COUNT(*)
-        FROM complaints_master
+        FROM unified_complaints
         WHERE closed_date IS NOT NULL
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14;
         """))
