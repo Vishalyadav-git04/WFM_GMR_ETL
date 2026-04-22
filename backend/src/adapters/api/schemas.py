@@ -575,6 +575,30 @@ class OMAvgClosureTimeOut(OMDimensionBase):
     avg_resolution_days: Optional[float] = None
 
 
+class OMAvgClosureTimeSummary(BaseModel):
+    total_closed_tickets: int = 0
+    avg_resolution_days: float = 0.0
+
+
+class OMAvgClosureTimeTrendPoint(BaseModel):
+    period_value: str
+    total_closed_tickets: int = 0
+    avg_resolution_days: float = 0.0
+
+
+class OMAvgClosureTimeComparisonItem(BaseModel):
+    label: str
+    total_closed_tickets: int = 0
+    avg_resolution_days: float = 0.0
+
+
+class OMAvgClosureTimeDashboardOut(BaseModel):
+    summary: OMAvgClosureTimeSummary
+    trend: List[OMAvgClosureTimeTrendPoint] = Field(default_factory=list)
+    comparison: List[OMAvgClosureTimeComparisonItem] = Field(default_factory=list)
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
+
 class OMClosedAnalysisOut(OMDimensionBase):
     complaint_type: Optional[str] = None
     complaint_category: Optional[str] = None

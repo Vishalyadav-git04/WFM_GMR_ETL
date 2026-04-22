@@ -2047,6 +2047,45 @@ Dashboard endpoint returning snapshot ageing buckets and trends based on `create
 ]
 ```
 
+#### `GET /api/om/avg-closure-time/dashboard`
+
+**Parameters**:
+- `duration`: `daily`, `weekly`, `monthly`
+- `project`: e.g. `all`, `agra`
+- `level`: `discom`, `zone`, `circle`, `division`, `subdivision`
+- `category`: `consumer`, `feeder`, `dt`, `total`
+- `start_date`, `end_date`
+
+**Response** — `OMAvgClosureTimeDashboardOut`:
+```json
+{
+  "summary": {
+    "total_closed_tickets": 15000,
+    "avg_resolution_days": 2.5
+  },
+  "trend": [
+    {
+      "period_value": "2024-08",
+      "total_closed_tickets": 1200,
+      "avg_resolution_days": 2.8
+    }
+  ],
+  "comparison": [
+    {
+      "label": "AGRA",
+      "total_closed_tickets": 5000,
+      "avg_resolution_days": 2.4
+    }
+  ],
+  "category_breakdown": {
+    "CONSUMER": {
+      "total_closed_tickets": 12000,
+      "avg_resolution_days": 2.6
+    }
+  }
+}
+```
+
 ---
 
 ### KPI O&M-5 — Closed Ticket Analysis

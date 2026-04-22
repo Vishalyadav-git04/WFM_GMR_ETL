@@ -147,23 +147,49 @@ def execute_om_avg_closure_time(engine):
     """KPI 4: Avg closure time."""
     log.info("Executing SQL for O&M KPI 4: Avg Closure Time")
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE sql_om_avg_closure_time CASCADE;"))
+        # Drop and recreate to ensure schema updates (adding closed_tickets, closed_date)
+        conn.execute(text("DROP TABLE IF EXISTS sql_om_avg_closure_time CASCADE;"))
+        conn.execute(text("""
+        CREATE TABLE sql_om_avg_closure_time (
+            id BIGSERIAL PRIMARY KEY,
+            project VARCHAR(200),
+            discom VARCHAR(200),
+            zone VARCHAR(200),
+            circle VARCHAR(200),
+            division VARCHAR(200),
+            subdivision VARCHAR(200),
+            substation VARCHAR(200),
+            feeder VARCHAR(200),
+            dtr VARCHAR(200),
+            meter_category VARCHAR(100),
+            period_type VARCHAR(10),
+            period_value_created VARCHAR(50),
+            period_value_closed VARCHAR(50),
+            avg_resolution_days FLOAT,
+            closed_tickets BIGINT,
+            closed_date DATE
+        );
+        """))
         
         # 1. Daily
         conn.execute(text("""
         INSERT INTO sql_om_avg_closure_time (
             project, discom, zone, circle, division, subdivision, substation, feeder, dtr, meter_category,
-            period_type, period_value_created, period_value_closed, avg_resolution_days
+            period_type, period_value_created, period_value_closed, avg_resolution_days,
+            closed_tickets, closed_date
         )
         SELECT 
             project, discom, zone, circle, division, 
             sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             'daily', TO_CHAR(created_date, 'DD-MM-YY'), TO_CHAR(closed_date, 'DD-MM-YY'),
-            AVG(EXTRACT(EPOCH FROM (closed_date - created_date))/86400.0)
+            AVG(EXTRACT(EPOCH FROM (closed_date - created_date))/86400.0),
+            COUNT(*),
+            closed_date::date
         FROM unified_complaints
         WHERE closed_date IS NOT NULL
-        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
+        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,16;
         """))
+
 
 def execute_om_closed_analysis(engine):
     """KPI 5: Closed analysis."""

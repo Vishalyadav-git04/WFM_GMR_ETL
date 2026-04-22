@@ -203,6 +203,8 @@ class SqlOMAvgClosureTime(OMDimensionMixin, Base):
     period_value_created = Column(String(50))
     period_value_closed = Column(String(50))
     avg_resolution_days = Column(Float)
+    closed_tickets = Column(BigInteger)
+    closed_date = Column(Date)
 
 
 class SqlOMClosedAnalysis(OMDimensionMixin, Base):

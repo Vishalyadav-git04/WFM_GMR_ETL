@@ -632,5 +632,127 @@ class SQLAlchemyOMRepository(IOMRepository):
             "category_breakdown": category_breakdown
         }
 
+    def get_avg_closure_time_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        from sqlalchemy import cast, Float, case, func
+        q = self.session.query(OMAvgClosureTime)
+
+        # Filters
+        project = filters.get("project")
+        if project and project.lower() != "all":
+            q = q.filter(OMAvgClosureTime.project.ilike(project))
+            
+        category = filters.get("category")
+        if category and category.lower() != "total":
+            cat_filter = category.lower()
+            if cat_filter == "dt":
+                cat_filter = "dtr"
+            q = q.filter(OMAvgClosureTime.meter_category.ilike(cat_filter))
+
+        for field in ["discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"]:
+            val = filters.get(field)
+            if val:
+                q = q.filter(getattr(OMAvgClosureTime, field).ilike(val))
+                
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
+        if start_date:
+            q = q.filter(OMAvgClosureTime.closed_date >= start_date)
+        if end_date:
+            q = q.filter(OMAvgClosureTime.closed_date <= end_date)
+
+        # Weighted avg formula
+        weighted_avg_expr = cast(func.sum(OMAvgClosureTime.avg_resolution_days * OMAvgClosureTime.closed_tickets), Float) / \
+                            func.sum(case((OMAvgClosureTime.closed_tickets > 0, OMAvgClosureTime.closed_tickets), else_=1))
+
+        # --- Summary ---
+        summary_row = q.with_entities(
+            func.sum(OMAvgClosureTime.closed_tickets),
+            weighted_avg_expr
+        ).first()
+        
+        summary = {
+            "total_closed_tickets": int(summary_row[0] or 0) if summary_row else 0,
+            "avg_resolution_days": round(float(summary_row[1] or 0), 2) if summary_row else 0.0
+        }
+
+        # --- Trend ---
+        duration = (filters.get("duration") or "monthly").lower()
+        if duration == "daily":
+            date_expr = func.to_char(OMAvgClosureTime.closed_date, 'YYYY-MM-DD')
+        elif duration == "weekly":
+            date_expr = func.to_char(func.date_trunc('week', OMAvgClosureTime.closed_date), 'YYYY-MM-DD')
+        elif duration == "monthly":
+            date_expr = func.to_char(OMAvgClosureTime.closed_date, 'YYYY-MM')
+        else:
+            date_expr = func.to_char(OMAvgClosureTime.closed_date, 'YYYY-MM')
+
+        trend_rows = q.with_entities(
+            date_expr.label('period_label'),
+            func.sum(OMAvgClosureTime.closed_tickets),
+            weighted_avg_expr
+        ).group_by(date_expr).all()
+
+        trend = []
+        for row in trend_rows:
+            if not row[0]: continue
+            trend.append({
+                "period_value": row[0],
+                "total_closed_tickets": int(row[1] or 0),
+                "avg_resolution_days": round(float(row[2] or 0), 2)
+            })
+        trend = sorted(trend, key=lambda x: x["period_value"])
+
+        # --- Comparison ---
+        level = (filters.get("level") or "discom").lower()
+        if level == "divison": level = "division"
+        elif level == "subdivison": level = "subdivision"
+        valid_levels = {"discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"}
+        if level not in valid_levels: level = "discom"
+        
+        proj_filter = filters.get("project", "all").lower()
+        if proj_filter != "all":
+            label_expr = getattr(OMAvgClosureTime, level)
+        elif proj_filter == "all" and level == "discom":
+            label_expr = OMAvgClosureTime.project
+        else:
+            label_expr = OMAvgClosureTime.project + " | " + getattr(OMAvgClosureTime, level)
+
+        comp_rows = q.with_entities(
+            label_expr.label('label'),
+            func.sum(OMAvgClosureTime.closed_tickets),
+            weighted_avg_expr
+        ).filter(getattr(OMAvgClosureTime, level).isnot(None)).group_by(label_expr).all()
+
+        comparison = []
+        for row in comp_rows:
+            lbl = row[0]
+            comparison.append({
+                "label": str(lbl) if lbl else "Unknown",
+                "total_closed_tickets": int(row[1] or 0),
+                "avg_resolution_days": round(float(row[2] or 0), 2)
+            })
+
+        # --- Category Breakdown ---
+        cat_rows = q.with_entities(
+            OMAvgClosureTime.meter_category,
+            func.sum(OMAvgClosureTime.closed_tickets),
+            weighted_avg_expr
+        ).filter(OMAvgClosureTime.meter_category.isnot(None)).group_by(OMAvgClosureTime.meter_category).all()
+        
+        category_breakdown = {}
+        for row in cat_rows:
+            cat_name = str(row[0]) if row[0] else "Unknown"
+            category_breakdown[cat_name] = {
+                "total_closed_tickets": int(row[1] or 0),
+                "avg_resolution_days": round(float(row[2] or 0), 2)
+            }
+
+        return {
+            "summary": summary,
+            "trend": trend,
+            "comparison": comparison,
+            "category_breakdown": category_breakdown
+        }
+
     def save_productivity_team(self, entities: List[OMProductivityTeamEntity]):
         pass

@@ -7,7 +7,8 @@ from usecases.om.om_usecase import OMUseCase
 from adapters.api.schemas import (
     OMProductivityTeamOut, OMProductivityTrendOut, OMOpenAgeingOut,
     OMAvgClosureTimeOut, OMClosedAnalysisOut, OMTeamProductivityDashboardOut,
-    OMProductivityTrendDashboardOut, OMOpenAgeingDashboardOut
+    OMProductivityTrendDashboardOut, OMOpenAgeingDashboardOut,
+    OMAvgClosureTimeDashboardOut
 )
 
 router = APIRouter(prefix="/api/om", tags=["O&M KPIs"])
@@ -158,6 +159,29 @@ def get_avg_closure_time(
     if filters.get("om_category") and not filters.get("meter_category"):
         filters["meter_category"] = filters.pop("om_category")
     return om_usecase.get_avg_closure_time(filters, limit, offset)
+
+@router.get("/avg-closure-time/dashboard",
+            response_model=OMAvgClosureTimeDashboardOut,
+            summary="O&M Average Ticket Closure Time Dashboard")
+def get_avg_closure_time_dashboard(
+    duration: Optional[str] = Query("monthly"),
+    level: Optional[str] = Query("discom"),
+    project: Optional[str] = Query("all"),
+    category: Optional[str] = Query("total"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    om_usecase: OMUseCase = Depends(get_om_usecase),
+):
+    filters = locals()
+    filters.pop("om_usecase")
+    return om_usecase.get_avg_closure_time_dashboard(filters)
 
 @router.get("/closed-analysis", response_model=List[OMClosedAnalysisOut], summary="Get O&M Closed Ticket Analysis by Type/Category")
 def get_closed_analysis(
