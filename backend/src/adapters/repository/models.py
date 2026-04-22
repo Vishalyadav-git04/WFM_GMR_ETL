@@ -168,7 +168,8 @@ class MeterCurrentStage(MIDimensionMixin, Base):
 class DefectiveMeters(MIDimensionMixin, Base):
     __tablename__ = "sql_defective_meters"
     defective_type = Column(String(50))  # Meter Burnt, Meter Faulty, Others
-    period_value = Column(String(50))   # YYYY-MM
+    period_type = Column(String(20))     # daily / weekly / monthly
+    period_value = Column(String(50))    # YYYY-MM-DD or DD-MM-YY or YYYY-MM
     meter_count = Column(BigInteger)
 
 

@@ -939,16 +939,19 @@ def execute_kpi_14_defective_meters(engine):
     """
     KPI 14: Defective Meters.
     Categorizes complaints from unified_complaints into Meter Burnt, Meter Faulty, and Others.
+    Stores daily, weekly, and monthly granularities.
     """
     from sqlalchemy import text
     with engine.begin() as conn:
+        # Ensure period_type column exists (safe if already present)
+        conn.execute(text("ALTER TABLE sql_defective_meters ADD COLUMN IF NOT EXISTS period_type VARCHAR(20);"))
         conn.execute(text("TRUNCATE TABLE sql_defective_meters CASCADE;"))
         
         sql = """
         INSERT INTO sql_defective_meters (
             project, discom, zone, circle, division, subdivision, 
             substation, feeder, dtr, meter_category, new_meter_type, 
-            defective_type, period_value, meter_count
+            defective_type, period_type, period_value, meter_count
         )
         WITH cleaned_complaints AS (
             SELECT 
@@ -993,13 +996,41 @@ def execute_kpi_14_defective_meters(engine):
             FROM categorized c
             LEFT JOIN unified_installation_inventory_data inv ON c.old_smart_meter_number = inv.meterserialnumber
         )
+        -- Daily granularity
         SELECT 
             project, discom, zone, circle, division, subdivision, 
-            substation_inv, feeder, dtr, refined_category, metertype_inv,
+            substation_inv as substation, feeder, dtr, refined_category as meter_category, metertype_inv as new_meter_type,
             defective_type,
-            TO_CHAR(DATE_TRUNC('month', created_date), 'DD-MM-YY'),
-            COUNT(*)
+            'daily' as period_type,
+            TO_CHAR(created_date, 'DD-MM-YY') as period_value,
+            COUNT(*) as meter_count
         FROM joined
-        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
+        GROUP BY project, discom, zone, circle, division, subdivision, substation_inv, feeder, dtr, refined_category, metertype_inv, defective_type, TO_CHAR(created_date, 'DD-MM-YY')
+
+        UNION ALL
+
+        -- Weekly granularity
+        SELECT 
+            project, discom, zone, circle, division, subdivision, 
+            substation_inv as substation, feeder, dtr, refined_category as meter_category, metertype_inv as new_meter_type,
+            defective_type,
+            'weekly' as period_type,
+            TO_CHAR(DATE_TRUNC('week', created_date), 'DD-MM-YY') as period_value,
+            COUNT(*) as meter_count
+        FROM joined
+        GROUP BY project, discom, zone, circle, division, subdivision, substation_inv, feeder, dtr, refined_category, metertype_inv, defective_type, DATE_TRUNC('week', created_date)
+
+        UNION ALL
+
+        -- Monthly granularity
+        SELECT 
+            project, discom, zone, circle, division, subdivision, 
+            substation_inv as substation, feeder, dtr, refined_category as meter_category, metertype_inv as new_meter_type,
+            defective_type,
+            'monthly' as period_type,
+            TO_CHAR(DATE_TRUNC('month', created_date), 'DD-MM-YY') as period_value,
+            COUNT(*) as meter_count
+        FROM joined
+        GROUP BY project, discom, zone, circle, division, subdivision, substation_inv, feeder, dtr, refined_category, metertype_inv, defective_type, DATE_TRUNC('month', created_date);
         """
         conn.execute(text(sql))

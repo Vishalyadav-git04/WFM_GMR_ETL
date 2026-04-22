@@ -1887,14 +1887,19 @@ class SQLAlchemyMIRepository(IMIRepository):
         base_filters.pop("level", None)
         base_filters.pop("project", None)
         
-        # Handle category alias
-        if "category" in base_filters:
-            if not base_filters.get("meter_category"):
-                base_filters["meter_category"] = base_filters.pop("category")
-            else:
-                base_filters.pop("category")
+        # Handle category alias and map to proper meter_category values
+        category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT"}
+        category_val = (base_filters.pop("category", None) or base_filters.pop("meter_category", None) or "total").lower()
+        
+        # Only set meter_category filter if category_val is specific (not "all" or "total")
+        if category_val in category_map:
+            base_filters["meter_category"] = category_map[category_val]
+        # else: category is "all" or "total" → don't add meter_category filter
         
         q = self._apply_filters(q, DefectiveMeters, base_filters)
+        
+        # Filter by duration → period_type
+        q = q.filter(DefectiveMeters.period_type == duration)
         
         if project == "all" or not project:
             q = q.filter(func.upper(func.trim(DefectiveMeters.project)).in_(["AGRA", "KASHI", "TRIVENI"]))
