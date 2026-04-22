@@ -9,6 +9,9 @@ class OMUseCase:
     def get_productivity_team(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.om_repo.get_productivity_team(filters, limit, offset)
 
+    def get_productivity_team_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.om_repo.get_productivity_team_dashboard(filters)
+
     def get_productivity_trend(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.om_repo.get_productivity_trend(filters, limit, offset)
 

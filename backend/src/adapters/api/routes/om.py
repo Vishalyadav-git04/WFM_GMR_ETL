@@ -6,7 +6,7 @@ from adapters.repository.sqlalchemy_om_repo import SQLAlchemyOMRepository
 from usecases.om.om_usecase import OMUseCase
 from adapters.api.schemas import (
     OMProductivityTeamOut, OMProductivityTrendOut, OMOpenAgeingOut,
-    OMAvgClosureTimeOut, OMClosedAnalysisOut,
+    OMAvgClosureTimeOut, OMClosedAnalysisOut, OMTeamProductivityDashboardOut
 )
 
 router = APIRouter(prefix="/api/om", tags=["O&M KPIs"])
@@ -36,6 +36,29 @@ def get_productivity_team(
     if filters.get("om_category") and not filters.get("meter_category"):
         filters["meter_category"] = filters.pop("om_category")
     return om_usecase.get_productivity_team(filters, limit, offset)
+
+@router.get("/productivity-team/dashboard",
+            response_model=OMTeamProductivityDashboardOut,
+            summary="O&M Team Productivity Dashboard")
+def get_productivity_team_dashboard(
+    duration: Optional[str] = Query("daily"),
+    level: Optional[str] = Query("discom"),
+    project: Optional[str] = Query("all"),
+    category: Optional[str] = Query("total"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    om_usecase: OMUseCase = Depends(get_om_usecase),
+):
+    filters = locals()
+    filters.pop("om_usecase")
+    return om_usecase.get_productivity_team_dashboard(filters)
 
 @router.get("/productivity-trend", response_model=List[OMProductivityTrendOut], summary="Get O&M Productivity Trend (Monthly)")
 def get_productivity_trend(

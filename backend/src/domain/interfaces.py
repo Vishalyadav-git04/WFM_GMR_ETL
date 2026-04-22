@@ -71,6 +71,9 @@ class IOMRepository(ABC):
     def get_productivity_team(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
 
     @abstractmethod
+    def get_productivity_team_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
+    @abstractmethod
     def get_productivity_trend(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
 
     @abstractmethod

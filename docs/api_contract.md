@@ -1749,25 +1749,74 @@ Plus all geographical dimensions (`discom`, `zone`, `circle`, `division`, `subdi
 
 ---
 
-### KPI O&M-1 — Team Productivity
+### KPI O&M-1 — Team Productivity Dashboard
 
-#### `GET /api/om/productivity-team`
+#### `GET /api/om/productivity-team/dashboard`
 
-**Response** — `List[OMProductivityTeamOut]`:
+**Parameters**:
+- `duration`: `daily`, `weekly`, `monthly`
+- `project`: e.g. `all`, `agra`
+- `level`: `discom`, `zone`, `circle`, `division`, `subdivision`
+- `category`: `consumer`, `feeder`, `dt`, `total`
+- `start_date`, `end_date`
+
+**Formula**:
+- **Daily Productivity**: `Closed Tickets (that day) / Distinct Active Technicians (that day)`
+- **Weekly/Monthly Productivity**: `AVG(Daily Productivity)` computed across the active days in the period.
+- *Note*: If `technician` is missing for a closed ticket, the `supervisor` is used as a fallback.
+
+**Response** — `OMTeamProductivityDashboardOut`:
 ```json
-[
-  {
-    "project": "AGRA", "discom": "DVVNL", "zone": "AGRA I",
-    "circle": null, "division": null, "subdivision": null,
-    "substation": null, "feeder": null, "dtr": null,
-    "meter_category": "CONSUMER",
-    "technician": "Team Alpha",
-    "agency": "GMR Service",
-    "period_type": "daily",
-    "period_value": "2024-08-01",
-    "closed_tickets": 45
+{
+  "summary": {
+    "total_closed_tickets": 15000,
+    "total_active_technicians": 25,
+    "productivity_per_technician_per_day": 20.0
+  },
+  "insights": {
+    "top_performing_technician": {
+      "name": "VI2_Avdhesh kumar",
+      "productivity_per_technician_per_day": 35.2
+    },
+    "lowest_performing_technician": {
+      "name": "Tech Beta",
+      "productivity_per_technician_per_day": 1.2
+    }
+  },
+  "trend": [
+    {
+      "date": "2026-03-01",
+      "total_closed_tickets": 500,
+      "active_technicians": 5,
+      "productivity_per_technician_per_day": 100.0
+    }
+  ],
+  "comparison": [
+    {
+      "label": "AGRA",
+      "total_closed_tickets": 5000,
+      "active_technicians": 8,
+      "productivity_per_technician_per_day": 20.83
+    }
+  ],
+  "category_breakdown": {
+    "CONSUMER": {
+      "total_closed_tickets": 12000,
+      "active_technicians": 20,
+      "productivity_per_technician_per_day": 18.5
+    },
+    "FEEDER": {
+      "total_closed_tickets": 2000,
+      "active_technicians": 10,
+      "productivity_per_technician_per_day": 12.0
+    },
+    "DT": {
+      "total_closed_tickets": 1000,
+      "active_technicians": 5,
+      "productivity_per_technician_per_day": 8.0
+    }
   }
-]
+}
 ```
 
 ---

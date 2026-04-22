@@ -59,6 +59,51 @@ def execute_om_productivity_team(engine):
         GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14;
         """))
 
+def execute_om_team_productivity_dashboard(engine):
+    """KPI O&M-1: Team Productivity Dashboard Pre-aggregation."""
+    log.info("Executing SQL for O&M KPI 1: Team Productivity Dashboard (Pre-aggregation)")
+    with engine.begin() as conn:
+        # Create table if it doesn't exist (failsafe for local dev if migration missing)
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS sql_om_team_productivity_dashboard (
+            id BIGSERIAL PRIMARY KEY,
+            project VARCHAR(200),
+            discom VARCHAR(200),
+            zone VARCHAR(200),
+            circle VARCHAR(200),
+            division VARCHAR(200),
+            subdivision VARCHAR(200),
+            meter_category VARCHAR(100),
+            technician VARCHAR(200),
+            closed_day DATE,
+            closed_tickets BIGINT
+        );
+        """))
+        
+        conn.execute(text("TRUNCATE TABLE sql_om_team_productivity_dashboard CASCADE;"))
+        
+        conn.execute(text("""
+        INSERT INTO sql_om_team_productivity_dashboard (
+            project, discom, zone, circle, division, subdivision,
+            meter_category, technician, closed_day, closed_tickets
+        )
+        SELECT
+            UPPER(TRIM(project)),
+            discom,
+            zone,
+            circle,
+            division,
+            sub_division,
+            UPPER(TRIM(meter_category)),
+            COALESCE(NULLIF(TRIM(technician), ''), supervisor) as technician,
+            closed_date::date,
+            COUNT(*)
+        FROM unified_complaints
+        WHERE closed_date IS NOT NULL
+          AND COALESCE(NULLIF(TRIM(technician), ''), supervisor) IS NOT NULL
+        GROUP BY 1,2,3,4,5,6,7,8,9;
+        """))
+
 def execute_om_productivity_trend(engine):
     """KPI 2: Productivity trend."""
     log.info("Executing SQL for O&M KPI 2: Productivity Trend")

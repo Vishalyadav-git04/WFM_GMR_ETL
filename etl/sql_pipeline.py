@@ -38,7 +38,8 @@ from modules.om.sql_transform import (
     execute_om_productivity_trend,
     execute_om_open_ageing,
     execute_om_avg_closure_time,
-    execute_om_closed_analysis
+    execute_om_closed_analysis,
+    execute_om_team_productivity_dashboard
 )
 
 log = get_logger("sql_pipeline")
@@ -92,6 +93,7 @@ def run_om_sql_pipeline():
     execute_om_open_ageing(engine)
     execute_om_avg_closure_time(engine)
     execute_om_closed_analysis(engine)
+    execute_om_team_productivity_dashboard(engine)
     
     log.info("=== O&M SQL Push-down Pipeline finished ===")
 

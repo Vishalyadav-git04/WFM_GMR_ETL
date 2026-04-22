@@ -252,6 +252,20 @@ class OMProductivityTeam(OMDimensionMixin, Base):
     period_value = Column(String(50))  # the date or month string
     closed_tickets = Column(BigInteger)
 
+class OMTeamProductivityDashboard(Base):
+    __tablename__ = "sql_om_team_productivity_dashboard"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    discom = Column(String(200))
+    zone = Column(String(200))
+    circle = Column(String(200))
+    division = Column(String(200))
+    subdivision = Column(String(200))
+    meter_category = Column(String(100))
+    technician = Column(String(200))
+    closed_day = Column(Date)
+    closed_tickets = Column(BigInteger)
+
 
 class OMProductivityTrend(OMDimensionMixin, Base):
     __tablename__ = "sql_om_productivity_trend"

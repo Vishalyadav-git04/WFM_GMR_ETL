@@ -455,6 +455,35 @@ class OMProductivityTeamOut(OMDimensionBase):
     closed_tickets: Optional[int] = None
 
 
+class OMTeamProductivitySummary(BaseModel):
+    total_closed_tickets: int = 0
+    total_active_technicians: int = 0
+    productivity_per_technician_per_day: float = 0.0
+
+class OMTeamProductivityInsights(BaseModel):
+    top_performing_technician: Dict[str, Any] = Field(default_factory=dict)
+    lowest_performing_technician: Dict[str, Any] = Field(default_factory=dict)
+
+class OMTeamProductivityTrendPoint(BaseModel):
+    date: str
+    total_closed_tickets: int = 0
+    active_technicians: int = 0
+    productivity_per_technician_per_day: float = 0.0
+
+class OMTeamProductivityComparisonItem(BaseModel):
+    label: str
+    total_closed_tickets: int = 0
+    active_technicians: int = 0
+    productivity_per_technician_per_day: float = 0.0
+
+class OMTeamProductivityDashboardOut(BaseModel):
+    summary: OMTeamProductivitySummary
+    insights: OMTeamProductivityInsights
+    trend: List[OMTeamProductivityTrendPoint] = Field(default_factory=list)
+    comparison: List[OMTeamProductivityComparisonItem] = Field(default_factory=list)
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
+
 class OMProductivityTrendOut(OMDimensionBase):
     closed_month: Optional[str] = None
     total_closed_tickets: Optional[int] = None
