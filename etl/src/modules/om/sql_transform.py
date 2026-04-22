@@ -131,14 +131,14 @@ def execute_om_open_ageing(engine):
         conn.execute(text("""
         INSERT INTO sql_om_open_ageing (
             project, discom, zone, circle, division, subdivision, substation, feeder, dtr, meter_category,
-            ticket_id, created_date, ageing_days, technician, agency
+            ticket_id, created_date, ageing_days, technician, agency, complaint_by
         )
         SELECT 
             project, discom, zone, circle, division, 
             sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
             ticket_id, created_date, 
             EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - created_date))/86400.0,
-            technician, agency
+            technician, agency, complaint_by
         FROM unified_complaints
         WHERE closed_date IS NULL;
         """))

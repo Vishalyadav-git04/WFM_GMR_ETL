@@ -194,6 +194,7 @@ class SqlOMOpenAgeing(OMDimensionMixin, Base):
     ageing_days = Column(Float)
     technician = Column(String(200))
     agency = Column(String(200))
+    complaint_by = Column(String(200))
 
 
 class SqlOMAvgClosureTime(OMDimensionMixin, Base):

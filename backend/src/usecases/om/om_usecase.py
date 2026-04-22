@@ -21,6 +21,9 @@ class OMUseCase:
     def get_open_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.om_repo.get_open_ageing(filters, limit, offset)
 
+    def get_open_ageing_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.om_repo.get_open_ageing_dashboard(filters)
+
     def get_avg_closure_time(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.om_repo.get_avg_closure_time(filters, limit, offset)
 

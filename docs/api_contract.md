@@ -1928,6 +1928,103 @@ Dashboard endpoint returning structured monthly productivity metrics. Uses the s
 ]
 ```
 
+#### `GET /api/om/open-ageing/dashboard`
+
+Dashboard endpoint returning snapshot ageing buckets and trends based on `created_date`.
+
+**Parameters**:
+- `duration`: `daily`, `weekly`, `monthly` (used for trend grouping)
+- `project`: e.g. `all`, `agra`
+- `level`: `discom`, `zone`, `circle`, `division`, `subdivision`
+- `category`: `consumer`, `feeder`, `dt`, `total`
+- `start_date`, `end_date`
+- Plus geo filters.
+
+**Response** — `OMOpenAgeingDashboardOut`:
+```json
+{
+  "total_open": 100,
+  "summary": {
+    "total_open": 100,
+    "auto_ticketing": 40,
+    "1912_helpdesk": 30,
+    "others": 30,
+    "age_buckets": {
+      "age_less_than_3_days": {
+        "total": 10,
+        "auto_ticketing": 4,
+        "1912_helpdesk": 3,
+        "others": 3
+      },
+      "age_less_than_7_days": {
+        "total": 20,
+        "auto_ticketing": 10,
+        "1912_helpdesk": 5,
+        "others": 5
+      },
+      "age_less_than_15_days": {
+        "total": 15,
+        "auto_ticketing": 6,
+        "1912_helpdesk": 4,
+        "others": 5
+      },
+      "age_less_than_30_days": {
+        "total": 15,
+        "auto_ticketing": 5,
+        "1912_helpdesk": 5,
+        "others": 5
+      },
+      "age_less_than_3_months": {
+        "total": 20,
+        "auto_ticketing": 10,
+        "1912_helpdesk": 5,
+        "others": 5
+      },
+      "age_less_than_6_months": {
+        "total": 15,
+        "auto_ticketing": 4,
+        "1912_helpdesk": 6,
+        "others": 5
+      },
+      "age_6_months_and_above": {
+        "total": 5,
+        "auto_ticketing": 1,
+        "1912_helpdesk": 2,
+        "others": 2
+      }
+    }
+  },
+  "trend": [
+    {
+      "period_value": "2024-08",
+      "total_open": 50,
+      "auto_ticketing": 20,
+      "1912_helpdesk": 15,
+      "others": 15
+    }
+  ],
+  "comparison": [
+    {
+      "label": "AGRA",
+      "total_open": 100,
+      "auto_ticketing": 40,
+      "1912_helpdesk": 30,
+      "others": 30,
+      "age_buckets": { ... }
+    }
+  ],
+  "category_breakdown": {
+    "CONSUMER": {
+      "total_open": 100,
+      "auto_ticketing": 40,
+      "1912_helpdesk": 30,
+      "others": 30,
+      "age_buckets": { ... }
+    }
+  }
+}
+```
+
 ---
 
 ### KPI O&M-4 — Average Closure Time

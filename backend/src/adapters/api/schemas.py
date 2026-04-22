@@ -519,6 +519,54 @@ class OMOpenAgeingOut(OMDimensionBase):
     technician: Optional[str] = None
     agency: Optional[str] = None
 
+class OMOpenAgeingBucketBreakdown(BaseModel):
+    total: int = 0
+    auto_ticketing: int = 0
+    helpdesk_1912: int = Field(0, alias="1912_helpdesk")
+    others: int = 0
+
+class OMOpenAgeingBuckets(BaseModel):
+    age_less_than_3_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+    age_less_than_7_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+    age_less_than_15_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+    age_less_than_30_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+    age_less_than_3_months: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+    age_less_than_6_months: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+    age_6_months_and_above: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+
+class OMOpenAgeingSummary(BaseModel):
+    total_open: int = 0
+    auto_ticketing: int = 0
+    helpdesk_1912: int = Field(0, alias="1912_helpdesk")
+    others: int = 0
+    age_buckets: OMOpenAgeingBuckets = Field(default_factory=OMOpenAgeingBuckets)
+
+class OMOpenAgeingTrendPoint(BaseModel):
+    period_value: str
+    total_open: int = 0
+    auto_ticketing: int = 0
+    helpdesk_1912: int = Field(0, alias="1912_helpdesk")
+    others: int = 0
+
+class OMOpenAgeingComparisonItem(BaseModel):
+    label: str
+    total_open: int = 0
+    auto_ticketing: int = 0
+    helpdesk_1912: int = Field(0, alias="1912_helpdesk")
+    others: int = 0
+    age_buckets: OMOpenAgeingBuckets = Field(default_factory=OMOpenAgeingBuckets)
+
+class OMOpenAgeingCategoryBreakdown(OMOpenAgeingSummary):
+    pass
+
+class OMOpenAgeingDashboardOut(BaseModel):
+    total_open: int = Field(..., description="Overall total open tickets")
+    summary: OMOpenAgeingSummary
+    trend: List[OMOpenAgeingTrendPoint] = Field(default_factory=list)
+    comparison: List[OMOpenAgeingComparisonItem] = Field(default_factory=list)
+    category_breakdown: Dict[str, OMOpenAgeingCategoryBreakdown] = Field(default_factory=dict)
+
+
 
 class OMAvgClosureTimeOut(OMDimensionBase):
     period_type: Optional[str] = None

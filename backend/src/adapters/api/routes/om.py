@@ -7,7 +7,7 @@ from usecases.om.om_usecase import OMUseCase
 from adapters.api.schemas import (
     OMProductivityTeamOut, OMProductivityTrendOut, OMOpenAgeingOut,
     OMAvgClosureTimeOut, OMClosedAnalysisOut, OMTeamProductivityDashboardOut,
-    OMProductivityTrendDashboardOut
+    OMProductivityTrendDashboardOut, OMOpenAgeingDashboardOut
 )
 
 router = APIRouter(prefix="/api/om", tags=["O&M KPIs"])
@@ -117,6 +117,29 @@ def get_open_ageing(
     if filters.get("om_category") and not filters.get("meter_category"):
         filters["meter_category"] = filters.pop("om_category")
     return om_usecase.get_open_ageing(filters, limit, offset)
+
+@router.get("/open-ageing/dashboard",
+            response_model=OMOpenAgeingDashboardOut,
+            summary="O&M Open Ticket Ageing Dashboard")
+def get_open_ageing_dashboard(
+    duration: Optional[str] = Query("daily"),
+    level: Optional[str] = Query("discom"),
+    project: Optional[str] = Query("all"),
+    category: Optional[str] = Query("total"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    om_usecase: OMUseCase = Depends(get_om_usecase),
+):
+    filters = locals()
+    filters.pop("om_usecase")
+    return om_usecase.get_open_ageing_dashboard(filters)
 
 @router.get("/avg-closure-time", response_model=List[OMAvgClosureTimeOut], summary="Get O&M Average Ticket Closure Time")
 def get_avg_closure_time(
