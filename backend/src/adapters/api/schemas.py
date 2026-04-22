@@ -489,6 +489,29 @@ class OMProductivityTrendOut(OMDimensionBase):
     total_closed_tickets: Optional[int] = None
 
 
+class OMProductivityTrendSummary(BaseModel):
+    total_closed_tickets: int = 0
+    total_active_months: int = 0
+    avg_monthly_productivity_per_technician_per_day: float = 0.0
+
+class OMProductivityTrendPoint(BaseModel):
+    month: str
+    total_closed_tickets: int = 0
+    active_days: int = 0
+    avg_active_technicians: float = 0.0
+    productivity_per_technician_per_day: float = 0.0
+
+class OMProductivityTrendComparisonItem(BaseModel):
+    label: str
+    productivity_per_technician_per_day: float = 0.0
+
+class OMProductivityTrendDashboardOut(BaseModel):
+    summary: OMProductivityTrendSummary
+    trend: List[OMProductivityTrendPoint] = Field(default_factory=list)
+    comparison: List[OMProductivityTrendComparisonItem] = Field(default_factory=list)
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
+
 class OMOpenAgeingOut(OMDimensionBase):
     ticket_id: Optional[str] = None
     created_date: Optional[datetime] = None

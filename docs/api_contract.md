@@ -1825,6 +1825,8 @@ Plus all geographical dimensions (`discom`, `zone`, `circle`, `division`, `subdi
 
 #### `GET /api/om/productivity-trend`
 
+Legacy flat endpoint. Returns monthly closed ticket counts at full dimension grain.
+
 **Response** — `List[OMProductivityTrendOut]`:
 ```json
 [
@@ -1837,7 +1839,75 @@ Plus all geographical dimensions (`discom`, `zone`, `circle`, `division`, `subdi
 ]
 ```
 
----
+#### `GET /api/om/productivity-trend/dashboard`
+
+Dashboard endpoint returning structured monthly productivity metrics. Uses the same underlying data as O&M-1 (`sql_om_team_productivity_dashboard` table).
+
+**Parameters**:
+- `duration`: Reserved (currently always monthly trend)
+- `project`: e.g. `all`, `agra`
+- `level`: `discom`, `zone`, `circle`, `division`, `subdivision`
+- `category`: `consumer`, `feeder`, `dt`, `total`
+- `start_date`, `end_date`
+- Plus geo filters: `discom`, `zone`, `circle`, `division`, `subdivision`, `feeder`, `dtr`
+
+**Metric Definitions**:
+- **`avg_active_technicians`**: Average number of technicians who worked per day in that month
+- **`productivity_per_technician_per_day`**: Average daily productivity per technician in that month
+- **`avg_monthly_productivity_per_technician_per_day`**: Average number of tickets a technician closes per day, calculated over the selected date range
+
+**Response** — `OMProductivityTrendDashboardOut`:
+```json
+{
+  "summary": {
+    "total_closed_tickets": 150000,
+    "total_active_months": 12,
+    "avg_monthly_productivity_per_technician_per_day": 22.5
+  },
+  "trend": [
+    {
+      "month": "2025-01",
+      "total_closed_tickets": 12000,
+      "active_days": 26,
+      "avg_active_technicians": 45,
+      "productivity_per_technician_per_day": 10.25
+    },
+    {
+      "month": "2025-02",
+      "total_closed_tickets": 13500,
+      "active_days": 24,
+      "avg_active_technicians": 48,
+      "productivity_per_technician_per_day": 11.72
+    }
+  ],
+  "comparison": [
+    {
+      "label": "AGRA",
+      "productivity_per_technician_per_day": 12.5
+    },
+    {
+      "label": "KASHI",
+      "productivity_per_technician_per_day": 11.2
+    },
+    {
+      "label": "TRIVENI",
+      "productivity_per_technician_per_day": 10.8
+    }
+  ],
+  "category_breakdown": {
+    "CONSUMER": {
+      "avg_monthly_productivity_per_technician_per_day": 18.2
+    },
+    "FEEDER": {
+      "avg_monthly_productivity_per_technician_per_day": 9.5
+    },
+    "DT": {
+      "avg_monthly_productivity_per_technician_per_day": 6.1
+    }
+  }
+}
+```
+
 
 ### KPI O&M-3 — Open Ticket Ageing
 

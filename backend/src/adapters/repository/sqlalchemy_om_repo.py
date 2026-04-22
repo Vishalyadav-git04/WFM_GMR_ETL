@@ -283,6 +283,171 @@ class SQLAlchemyOMRepository(IOMRepository):
             "category_breakdown": category_breakdown
         }
 
+    def get_productivity_trend_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        """KPI O&M-2: Productivity Trend Dashboard.
+
+        Reuses sql_om_team_productivity_dashboard (same source as O&M-1)
+        to compute monthly trend with per-technician-per-day productivity.
+        """
+        from sqlalchemy import cast, Float, case, extract
+
+        q = self.session.query(OMTeamProductivityDashboard)
+
+        # -- Filters (same logic as O&M-1) --
+        project = filters.get("project")
+        if project and project.lower() != "all":
+            q = q.filter(OMTeamProductivityDashboard.project.ilike(project))
+
+        category = filters.get("category")
+        if category and category.lower() != "total":
+            cat_filter = category.lower()
+            if cat_filter == "dt":
+                cat_filter = "dtr"
+            q = q.filter(OMTeamProductivityDashboard.meter_category.ilike(cat_filter))
+
+        for field in ["discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"]:
+            val = filters.get(field)
+            if val:
+                q = q.filter(getattr(OMTeamProductivityDashboard, field).ilike(val))
+
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
+        if start_date:
+            q = q.filter(OMTeamProductivityDashboard.closed_day >= start_date)
+        if end_date:
+            q = q.filter(OMTeamProductivityDashboard.closed_day <= end_date)
+
+        # -- Month expression --
+        month_expr = func.to_char(OMTeamProductivityDashboard.closed_day, 'YYYY-MM')
+
+        # ── SUMMARY ──────────────────────────────────────────────────
+        # Step 1: daily prod per day = tickets / distinct technicians
+        daily_sq = q.with_entities(
+            OMTeamProductivityDashboard.closed_day,
+            month_expr.label('month'),
+            func.sum(OMTeamProductivityDashboard.closed_tickets).label('day_tickets'),
+            (cast(func.sum(OMTeamProductivityDashboard.closed_tickets), Float) /
+             func.count(func.distinct(OMTeamProductivityDashboard.technician))).label('daily_prod')
+        ).group_by(OMTeamProductivityDashboard.closed_day, month_expr).subquery()
+
+        # Step 2: monthly avg of daily_prod
+        monthly_sq = self.session.query(
+            daily_sq.c.month,
+            func.sum(daily_sq.c.day_tickets).label('month_tickets'),
+            func.count(daily_sq.c.closed_day).label('active_days'),
+            func.avg(daily_sq.c.daily_prod).label('monthly_prod')
+        ).group_by(daily_sq.c.month).subquery()
+
+        # Step 3: overall summary
+        summary_row = self.session.query(
+            func.sum(monthly_sq.c.month_tickets),
+            func.count(monthly_sq.c.month),
+            func.avg(monthly_sq.c.monthly_prod)
+        ).first()
+
+        summary = {
+            "total_closed_tickets": int(summary_row[0] or 0) if summary_row else 0,
+            "total_active_months": int(summary_row[1] or 0) if summary_row else 0,
+            "avg_monthly_productivity_per_technician_per_day": round(float(summary_row[2] or 0), 2) if summary_row else 0.0
+        }
+
+        # ── TREND (per month) ────────────────────────────────────────
+        # daily subquery for avg_active_technicians per month
+        daily_tech_sq = q.with_entities(
+            month_expr.label('month'),
+            OMTeamProductivityDashboard.closed_day,
+            func.count(func.distinct(OMTeamProductivityDashboard.technician)).label('day_techs'),
+            func.sum(OMTeamProductivityDashboard.closed_tickets).label('day_tickets'),
+            (cast(func.sum(OMTeamProductivityDashboard.closed_tickets), Float) /
+             func.count(func.distinct(OMTeamProductivityDashboard.technician))).label('daily_prod')
+        ).group_by(month_expr, OMTeamProductivityDashboard.closed_day).subquery()
+
+        trend_rows = self.session.query(
+            daily_tech_sq.c.month,
+            func.sum(daily_tech_sq.c.day_tickets).label('total_tickets'),
+            func.count(daily_tech_sq.c.closed_day).label('active_days'),
+            func.avg(daily_tech_sq.c.day_techs).label('avg_techs'),
+            func.avg(daily_tech_sq.c.daily_prod).label('prod')
+        ).group_by(daily_tech_sq.c.month).order_by(daily_tech_sq.c.month).all()
+
+        trend = []
+        for row in trend_rows:
+            trend.append({
+                "month": row[0],
+                "total_closed_tickets": int(row[1] or 0),
+                "active_days": int(row[2] or 0),
+                "avg_active_technicians": round(float(row[3] or 0), 2),
+                "productivity_per_technician_per_day": round(float(row[4] or 0), 2)
+            })
+
+        # ── COMPARISON ───────────────────────────────────────────────
+        level = (filters.get("level") or "discom").lower()
+        if level == "divison":
+            level = "division"
+        elif level == "subdivison":
+            level = "subdivision"
+        valid_levels = {"discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"}
+        if level not in valid_levels:
+            level = "discom"
+
+        proj_filter = filters.get("project", "all").lower()
+        if proj_filter != "all":
+            label_expr = getattr(OMTeamProductivityDashboard, level)
+        elif proj_filter == "all" and level == "discom":
+            label_expr = OMTeamProductivityDashboard.project
+        else:
+            label_expr = OMTeamProductivityDashboard.project + " | " + getattr(OMTeamProductivityDashboard, level)
+
+        comp_daily_sq = q.with_entities(
+            label_expr.label('label'),
+            OMTeamProductivityDashboard.closed_day,
+            (cast(func.sum(OMTeamProductivityDashboard.closed_tickets), Float) /
+             func.count(func.distinct(OMTeamProductivityDashboard.technician))).label('daily_prod')
+        ).filter(
+            getattr(OMTeamProductivityDashboard, level).isnot(None)
+        ).group_by(label_expr, OMTeamProductivityDashboard.closed_day).subquery()
+
+        comp_rows = self.session.query(
+            comp_daily_sq.c.label,
+            func.avg(comp_daily_sq.c.daily_prod)
+        ).group_by(comp_daily_sq.c.label).all()
+
+        comparison = []
+        for row in comp_rows:
+            comparison.append({
+                "label": str(row[0]) if row[0] else "Unknown",
+                "productivity_per_technician_per_day": round(float(row[1] or 0), 2)
+            })
+
+        # ── CATEGORY BREAKDOWN ───────────────────────────────────────
+        cat_daily_sq = q.with_entities(
+            OMTeamProductivityDashboard.meter_category,
+            OMTeamProductivityDashboard.closed_day,
+            (cast(func.sum(OMTeamProductivityDashboard.closed_tickets), Float) /
+             func.count(func.distinct(OMTeamProductivityDashboard.technician))).label('daily_prod')
+        ).filter(
+            OMTeamProductivityDashboard.meter_category.isnot(None)
+        ).group_by(OMTeamProductivityDashboard.meter_category, OMTeamProductivityDashboard.closed_day).subquery()
+
+        cat_rows = self.session.query(
+            cat_daily_sq.c.meter_category,
+            func.avg(cat_daily_sq.c.daily_prod)
+        ).group_by(cat_daily_sq.c.meter_category).all()
+
+        category_breakdown = {}
+        for row in cat_rows:
+            cat_name = str(row[0]) if row[0] else "Unknown"
+            category_breakdown[cat_name] = {
+                "avg_monthly_productivity_per_technician_per_day": round(float(row[1] or 0), 2)
+            }
+
+        return {
+            "summary": summary,
+            "trend": trend,
+            "comparison": comparison,
+            "category_breakdown": category_breakdown
+        }
+
 
 
     def save_productivity_team(self, entities: List[OMProductivityTeamEntity]):

@@ -15,6 +15,9 @@ class OMUseCase:
     def get_productivity_trend(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.om_repo.get_productivity_trend(filters, limit, offset)
 
+    def get_productivity_trend_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        return self.om_repo.get_productivity_trend_dashboard(filters)
+
     def get_open_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         return self.om_repo.get_open_ageing(filters, limit, offset)
 
