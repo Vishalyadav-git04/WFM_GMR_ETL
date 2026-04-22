@@ -171,6 +171,70 @@ def execute_kpi_2_mi_productivity(engine):
         """))
 
 
+def execute_kpi_2_5_mi_technician_productivity_dashboard(engine):
+    """
+    KPI 2.5 (Technician Dashboard): daily pre-aggregation for fast dashboard queries.
+    Stores verified installations per technician per day in sql_mi_technician_productivity.
+    """
+    log.info("Executing SQL for KPI 2.5: MI Technician Productivity Dashboard (Pre-aggregation)")
+    with engine.begin() as conn:
+        # Failsafe for local/dev if migration not applied yet
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS sql_mi_technician_productivity (
+            id BIGSERIAL PRIMARY KEY,
+            installation_date DATE NOT NULL,
+            project VARCHAR(200),
+            discom VARCHAR(200),
+            zone VARCHAR(200),
+            circle VARCHAR(200),
+            division VARCHAR(200),
+            subdivision VARCHAR(200),
+            substation VARCHAR(200),
+            feeder VARCHAR(200),
+            dtr VARCHAR(200),
+            new_meter_type VARCHAR(200),
+            meter_category VARCHAR(100),
+            technician VARCHAR(200),
+            total_installations BIGINT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (installation_date, project, discom, zone, circle, division,
+                    subdivision, substation, feeder, dtr, new_meter_type, meter_category, technician)
+        );
+        """))
+
+        conn.execute(text("TRUNCATE TABLE sql_mi_technician_productivity CASCADE;"))
+
+        conn.execute(text("""
+        INSERT INTO sql_mi_technician_productivity (
+            installation_date, project, discom, zone, circle, division, subdivision,
+            substation, feeder, dtr, new_meter_type, meter_category, technician, total_installations
+        )
+        SELECT
+            mi_date::date as installation_date,
+            UPPER(TRIM(project)) as project,
+            discom, zone, circle, division, subdivision,
+            substation, feeder, dtr,
+            metertype as new_meter_type,
+            COALESCE(
+                UPPER(TRIM(connection_type)),
+                CASE
+                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    ELSE 'CONSUMER'
+                END
+            ) as meter_category,
+            NULLIF(TRIM(technicianname), '') as technician,
+            COUNT(*) as total_installations
+        FROM unified_installation_inventory_data
+        WHERE mi_date IS NOT NULL
+          AND sat_no IS NOT NULL
+          AND TRIM(sat_no) != ''
+          AND NULLIF(TRIM(technicianname), '') IS NOT NULL
+        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13;
+        """))
+
+
 def execute_kpi_3_monthly_productivity(engine):
     """Executes KPI 3 directly in the database."""
     log.info("Executing SQL for KPI 3: Monthly Productivity")

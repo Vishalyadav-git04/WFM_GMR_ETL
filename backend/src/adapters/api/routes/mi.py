@@ -14,6 +14,7 @@ from adapters.api.schemas import (
     MIvsSATvsInvoiceSummaryOut, RevenueRealizedSummaryOut, RevenueAgeingSummaryOut,
     DefectiveMetersSummaryOut,
     MIProgressDashboardOut,
+    MITeamProductivityDashboardOut,
 )
 
 router = APIRouter(prefix="/api/mi", tags=["MI KPIs"])
@@ -76,6 +77,33 @@ def get_mi_productivity(
     filters = locals()
     filters.pop("mi_usecase")
     return mi_usecase.get_mi_productivity(filters, limit, offset)
+
+
+@router.get("/productivity/team/dashboard",
+            response_model=MITeamProductivityDashboardOut,
+            summary="MI Technician Productivity Dashboard (Trend + Comparison)")
+def get_mi_productivity_team_dashboard(
+    duration: Optional[str] = Query("daily", description="Aggregation granularity: daily / weekly / monthly"),
+    level: Optional[str] = Query("discom", description="Cluster level for comparison: project, discom, zone, circle, division, subdivision"),
+    project: Optional[str] = Query("all", description="Project filter: all / AGRA / KASHI / TRIVENI"),
+    category: Optional[str] = Query("total", description="Meter category: total / consumer / feeder / dt"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    result = mi_usecase.get_productivity_team_dashboard(filters)
+    return MITeamProductivityDashboardOut(**result)
 
 @router.get("/monthly-productivity", response_model=List[MonthlyProductivityOut], summary="Get Monthly Productivity List")
 def get_monthly_productivity(

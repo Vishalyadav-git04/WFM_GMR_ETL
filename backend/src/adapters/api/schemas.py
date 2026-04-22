@@ -68,6 +68,40 @@ class MIProductivityOut(MIDimensionBase):
     daily_installations: Optional[int] = Field(None, description="Total installations done by this technician")
 
 
+class MITeamProductivitySummary(BaseModel):
+    total_installations: int = 0
+    total_active_technicians: int = 0
+    total_active_days: int = 0
+    productivity_per_technician_per_day: float = 0.0
+
+
+class MITeamProductivityInsights(BaseModel):
+    top_performing_technician: Dict[str, Any] = Field(default_factory=dict)
+    lowest_performing_technician: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MITeamProductivityTrendPoint(BaseModel):
+    date: str
+    total_installations: int = 0
+    active_technicians: int = 0
+    productivity_per_technician_per_day: float = 0.0
+
+
+class MITeamProductivityComparisonItem(BaseModel):
+    label: str
+    total_installations: int = 0
+    active_technicians: int = 0
+    productivity_per_technician_per_day: float = 0.0
+
+
+class MITeamProductivityDashboardOut(BaseModel):
+    summary: MITeamProductivitySummary
+    insights: MITeamProductivityInsights
+    trend: List[MITeamProductivityTrendPoint] = Field(default_factory=list)
+    comparison: List[MITeamProductivityComparisonItem] = Field(default_factory=list)
+    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
+
 class MonthlyProductivityOut(MIDimensionBase):
     period_type: Optional[str] = Field(None, description="Usually 'monthly'")
     period_value: Optional[str] = Field(None, description="Month in YYYY-MM format")

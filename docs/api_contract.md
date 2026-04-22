@@ -176,12 +176,13 @@ Tracks individual technician installation performance.
 
 ---
 
-### KPI 2.5 — MI Productivity per Team (Agency) Dashboard ⭐ _New Endpoint_
+### KPI 2.5 — MI Productivity per Technician (Dashboard) ⭐ _New Endpoint_
 
-Provides aggregated productivity metrics grouped by agency (team), with trend and comparison visualizations.
+Provides aggregated productivity metrics grouped by **technician**, with trend and comparison visualizations.
 
-**Formula**:  
-`MI Productivity per Team = Total verified installations / Number of active agencies`
+**Productivity Logic (same style as O&M-1)**:
+- Compute **daily productivity** as: `total_installations_that_day / distinct_technicians_that_day`
+- For `duration=weekly/monthly`, the dashboard returns **average of the daily productivity values** within each selected bucket/group.
 
 #### `GET /api/mi/productivity/team/dashboard`
 
@@ -197,86 +198,81 @@ Provides aggregated productivity metrics grouped by agency (team), with trend an
 
 **Behavior Notes**
 
-- **Trend chart**: Returns time-series data at the selected `duration` granularity. Each point includes total installations, active agencies count, and productivity per agency per day.
+- **Trend chart**: Returns time-series data at the selected `duration` granularity. Each point includes total installations, active technicians count, and productivity per technician per day (avg-of-daily logic).
 - **Comparison chart**:
   - If `project=all` + `level=project` or `level=discom` → 3 bars: `AGRA`, `KASHI`, `TRIVENI`
   - If `project=all` + `level=zone/circle/division/subdivision` → composite labels like `AGRA | AGRA I`, `KASHI | ZONE-A`
   - If `project=AGRA` + `level=zone` → bars: `AGRA I`, `AGRA II` (raw zone names, no project prefix)
 - **Category breakdown**: Breaks down total installations and productivity per day by `meter_category` (`CONSUMER`, `FEEDER`, `DT`).
-- **Insights**: Shows top and lowest performing agencies based on overall productivity.
-- All installations are **verified only** (`sat_no IS NOT NULL`).
-- `productivity_per_agency_per_day` = `total_installations / (active_agencies × active_days)`
+- **Insights**: Shows top and lowest performing technicians based on overall productivity.
+- All installations are **verified only** (`sat_no IS NOT NULL` and non-empty).
 
-**Response** — `MIPerTeamDashboardOut`:
+**Response** — `MITeamProductivityDashboardOut`:
 
 ```json
 {
   "summary": {
     "total_installations": 15000,
-    "total_agencies": 25,
+    "total_active_technicians": 25,
     "total_active_days": 30,
-    "productivity_per_day": 500.0,
-    "productivity_per_agency_per_day": 20.0
+    "productivity_per_technician_per_day": 20.0
   },
   "insights": {
-    "top_performing_agency": {
-      "name": "ABC Agency",
-      "productivity_per_agency_per_day": 35.2
+    "top_performing_technician": {
+      "name": "John Doe",
+      "productivity_per_technician_per_day": 35.2
     },
-    "lowest_performing_agency": {
-      "name": "XYZ Agency",
-      "productivity_per_agency_per_day": 12.8
+    "lowest_performing_technician": {
+      "name": "Jane Smith",
+      "productivity_per_technician_per_day": 12.8
     }
   },
   "trend": [
     {
       "date": "2026-03-01",
       "total_installations": 500,
-      "active_agencies": 5,
-      "productivity_per_agency_per_day": 100.0
+      "active_technicians": 5,
+      "productivity_per_technician_per_day": 100.0
     },
     {
       "date": "2026-03-02",
       "total_installations": 550,
-      "active_agencies": 5,
-      "productivity_per_agency_per_day": 110.0
+      "active_technicians": 5,
+      "productivity_per_technician_per_day": 110.0
     }
   ],
   "comparison": [
     {
       "label": "AGRA",
       "total_installations": 5000,
-      "active_agencies": 8,
-      "active_days": 30,
-      "productivity_per_agency_per_day": 20.83
+      "active_technicians": 8,
+      "productivity_per_technician_per_day": 20.83
     },
     {
       "label": "KASHI",
       "total_installations": 4500,
-      "active_agencies": 7,
-      "active_days": 30,
-      "productivity_per_agency_per_day": 21.43
+      "active_technicians": 7,
+      "productivity_per_technician_per_day": 21.43
     },
     {
       "label": "TRIVENI",
       "total_installations": 5500,
-      "active_agencies": 10,
-      "active_days": 30,
-      "productivity_per_agency_per_day": 18.33
+      "active_technicians": 10,
+      "productivity_per_technician_per_day": 18.33
     }
   ],
   "category_breakdown": {
     "CONSUMER": {
       "total_installations": 12000,
-      "productivity_per_day": 400.0
+      "productivity_per_technician_per_day": 400.0
     },
     "FEEDER": {
       "total_installations": 2000,
-      "productivity_per_day": 66.6
+      "productivity_per_technician_per_day": 66.6
     },
     "DT": {
       "total_installations": 1000,
-      "productivity_per_day": 33.3
+      "productivity_per_technician_per_day": 33.3
     }
   }
 }
@@ -284,9 +280,9 @@ Provides aggregated productivity metrics grouped by agency (team), with trend an
 
 **Frontend Usage**
 
-- **Daily Performance Graph**: Use the `trend` array. X-axis = `date`, Y-axis = `productivity_per_agency_per_day` (or `total_installations`).
-- **Comparison by Cluster**: Use the `comparison` array. Each bar's height = `productivity_per_agency_per_day`. Tooltip can show `total_installations` and `active_agencies`.
-- **Summary Cards**: Use `summary` for overall KPIs (total installations, total agencies, overall productivity).
+- **Daily Performance Graph**: Use the `trend` array. X-axis = `date`, Y-axis = `productivity_per_technician_per_day` (or `total_installations`).
+- **Comparison by Cluster**: Use the `comparison` array. Each bar's height = `productivity_per_technician_per_day`. Tooltip can show `total_installations` and `active_technicians`.
+- **Summary Cards**: Use `summary` for overall KPIs (total installations, total active technicians, overall productivity).
 - **Category Distribution**: Use `category_breakdown` for pie/bar charts by meter type.
 
 ---

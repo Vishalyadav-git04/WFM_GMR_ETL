@@ -16,6 +16,9 @@ class IMIRepository(ABC):
 
     @abstractmethod
     def get_mi_progress_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def get_productivity_team_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
     
     @abstractmethod
     def get_monthly_productivity(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass

@@ -58,6 +58,19 @@ class MIProductivity(MIDimensionMixin, Base):
     daily_installations = Column(BigInteger)
 
 
+class MITechnicianProductivityDashboard(MIDimensionMixin, Base):
+    """
+    Daily pre-aggregated verified installations per technician.
+    Source table: sql_mi_technician_productivity
+    """
+    __tablename__ = "sql_mi_technician_productivity"
+    installation_date = Column(Date, nullable=False)
+    technician = Column(String(200))
+    total_installations = Column(BigInteger, nullable=False, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now())
+
+
 class MonthlyProductivity(MIDimensionMixin, Base):
     __tablename__ = "sql_monthly_productivity"
     period_type = Column(String(10))   # monthly
