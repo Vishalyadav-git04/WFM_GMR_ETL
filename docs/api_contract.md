@@ -326,11 +326,12 @@ Tracks monthly installation volume at each location.
 
 ### KPI 3.5 — Monthly Productivity Trend Dashboard ⭐ _New Endpoint_
 
-Provides a monthly view of installation productivity (installations per calendar day) with trend and comparison charts. Uses pre-aggregated data for fast performance.
+Provides a dashboard-ready view of **technician productivity trend** using the **KPI 2.5 avg-of-daily** method, rendered as a monthly trend by default (but supports daily/weekly/monthly buckets like other dashboards).
 
-**Formula**:  
-`Monthly Productivity = Total Installations / Active Days`  
-where `Active Days = Calendar days in that month` (e.g., January = 31, February = 28/29).
+**Productivity Logic (same style as KPI 2.5)**:
+- **Daily productivity** = `total_installations_that_day / distinct_technicians_that_day`
+- **Bucket productivity** (`duration=weekly/monthly`) = `AVG(daily productivity)` across the days in the bucket
+- If a day has `0` active technicians, that day's productivity is treated as `0`
 
 #### `GET /api/mi/productivity/trend/dashboard`
 
@@ -338,7 +339,7 @@ where `Active Days = Calendar days in that month` (e.g., January = 31, February 
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `duration` | `string` | Aggregation granularity: `daily` / `weekly` / `monthly` (used by trend; comparison always monthly) |
+| `duration` | `string` | Aggregation granularity: `daily` / `weekly` / `monthly` (**default: `monthly`**) |
 | `project` | `string` | Project filter: `all` (shows all 3 projects) or specific project name (`AGRA`, `KASHI`, `TRIVENI`) |
 | `level` | `string` | Level for comparison grouping: `discom` / `zone` / `circle` / `division` / `subdivision` (default: `zone`) |
 | `start_date` / `end_date` | `string` | Date range filter (`YYYY-MM-DD`) |
@@ -346,88 +347,79 @@ where `Active Days = Calendar days in that month` (e.g., January = 31, February 
 
 **Behavior Notes**
 
-- **Trend chart**: Returns monthly time-series. Each month shows:
-  - `total_installations` — sum of all verified installations that month
-  - `active_days` — calendar days in that month (31 for Jan, 30 for Apr, etc.)
-  - `productivity_per_day` = `total_installations / active_days`
+- **Trend chart**: Returns time-series at the selected `duration`. Each point includes:
+  - `total_installations` — sum of verified installations in the bucket
+  - `active_days` — count of distinct installation dates included in that bucket (within the filtered range)
+  - `avg_active_technicians` — average of distinct active technicians per day across the bucket
+  - `productivity_per_technician_per_day` — `AVG(daily productivity)` across the bucket
 - **Comparison chart** — grouping mirrors `/api/mi/progress/dashboard` (KPI 1):
   - `project=all` & `level=discom` → 3 bars: `AGRA`, `KASHI`, `TRIVENI`
   - `project=all` & `level=zone/circle/division/subdivision` → **composite labels** like `AGRA | AGRA I`, `KASHI | ZONE-A` (PROJECT | LEVEL)
   - `project=AGRA` & `level=zone` → bars show zones within AGRA only (e.g., `AGRA I`, `AGRA II`) — raw level values, no project prefix
 - All installations are **verified only** (`sat_no IS NOT NULL`).
-- The `active_days` in comparison sums calendar days across all months included in the filtered date range.
-- Data comes from a pre-aggregated summary table (`sql_monthly_productivity_trend_summary`) — no on-the-fly aggregation.
+- Data is sourced from the daily pre-aggregated table used by KPI 2.5 (`sql_mi_technician_productivity`) and rolled up for dashboard views.
 
-**Response** — `MonthlyProductivityTrendOut`
+**Response** — `MIProductivityTrendDashboardOut`
 
 ```json
 {
-  "monthly_productivity_trend": [
+  "summary": {
+    "total_installations": 305477,
+    "total_active_months": 6,
+    "productivity_per_technician_per_day": 20.83
+  },
+  "trend": [
     {
       "month": "2025-01",
       "total_installations": 129038,
-      "active_days": 31,
-      "productivity_per_day": 4162.52
+      "active_days": 26,
+      "avg_active_technicians": 45,
+      "productivity_per_technician_per_day": 10.25
     },
     {
       "month": "2025-02",
       "total_installations": 121412,
-      "active_days": 28,
-      "productivity_per_day": 4336.14
-    },
-    {
-      "month": "2025-03",
-      "total_installations": 118852,
-      "active_days": 31,
-      "productivity_per_day": 3833.94
-    },
-    {
-      "month": "2025-04",
-      "total_installations": 130066,
-      "active_days": 30,
-      "productivity_per_day": 4335.53
-    },
-    {
-      "month": "2025-05",
-      "total_installations": 137478,
-      "active_days": 31,
-      "productivity_per_day": 4434.77
-    },
-    {
-      "month": "2025-06",
-      "total_installations": 161450,
-      "active_days": 30,
-      "productivity_per_day": 5381.67
+      "active_days": 24,
+      "avg_active_technicians": 48,
+      "productivity_per_technician_per_day": 11.72
     }
   ],
   "comparison": [
     {
       "label": "AGRA",
       "total_installations": 305477,
-      "active_days": 181,
-      "productivity_per_day": 1687.72
+      "active_days": 150,
+      "avg_active_technicians": 47.2,
+      "productivity_per_technician_per_day": 12.5
     },
     {
       "label": "KASHI",
       "total_installations": 257417,
-      "active_days": 181,
-      "productivity_per_day": 1422.19
+      "active_days": 145,
+      "avg_active_technicians": 44.8,
+      "productivity_per_technician_per_day": 11.2
     },
     {
       "label": "TRIVENI",
       "total_installations": 235402,
-      "active_days": 181,
-      "productivity_per_day": 1300.56
+      "active_days": 142,
+      "avg_active_technicians": 43.1,
+      "productivity_per_technician_per_day": 10.8
     }
-  ]
+  ],
+  "category_breakdown": {
+    "CONSUMER": { "total_installations": 12000, "active_days": 26, "avg_active_technicians": 40.2, "productivity_per_technician_per_day": 18.2 },
+    "FEEDER": { "total_installations": 2000, "active_days": 26, "avg_active_technicians": 8.4, "productivity_per_technician_per_day": 9.5 },
+    "DT": { "total_installations": 1000, "active_days": 26, "avg_active_technicians": 5.1, "productivity_per_technician_per_day": 6.1 }
+  }
 }
 ```
 
 **Frontend Usage**
 
-- **Trend chart**: Line chart with `month` on X-axis, `productivity_per_day` on Y-axis. Tooltip can show `total_installations` and `active_days`.
-- **Comparison chart**: Bar chart with `label` (project/zone/circle) on X-axis, `productivity_per_day` as bar height. Tooltip shows `total_installations` and `active_days` to explain the calculation.
-- **Summary cards**: Use trend data to compute overall totals across all months.
+- **Trend chart**: X-axis = `month` (or the chosen bucket label), Y-axis = `productivity_per_technician_per_day`. Tooltip can show `total_installations`, `active_days`, `avg_active_technicians`.
+- **Comparison chart**: Bar height = `productivity_per_technician_per_day`, label from `comparison[].label`.
+- **Summary cards**: Use `summary` for headline numbers.
 
 ---
 

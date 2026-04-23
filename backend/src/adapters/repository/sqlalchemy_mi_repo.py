@@ -504,6 +504,206 @@ class SQLAlchemyMIRepository(IMIRepository):
             "category_breakdown": category_breakdown,
         }
 
+    def get_productivity_trend_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        KPI 3.5 — MI Technician Productivity Trend Dashboard.
+
+        Same base logic as KPI 2.5 (avg-of-daily productivity), but rendered in a
+        monthly-trend dashboard shape (like O&M-2) and defaults duration=monthly.
+        """
+        from sqlalchemy import cast, Float
+
+        duration = (filters.get("duration") or "monthly").lower()
+        level = (filters.get("level") or "discom").lower()
+        project = (filters.get("project") or "all").lower()
+        category_param = (filters.get("category") or "total").lower()
+
+        q = self.session.query(MITechnicianProductivityDashboard)
+
+        # Filters (dimensions)
+        default_projects = ["AGRA", "KASHI", "TRIVENI"]
+        if project and project != "all":
+            q = q.filter(func.upper(func.trim(MITechnicianProductivityDashboard.project)) == project.upper())
+        else:
+            q = q.filter(func.upper(func.trim(MITechnicianProductivityDashboard.project)).in_(default_projects))
+
+        category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT"}
+        meter_category = category_map.get(category_param)
+        if meter_category:
+            q = q.filter(func.upper(func.trim(MITechnicianProductivityDashboard.meter_category)) == meter_category)
+
+        for field in ["discom", "zone", "circle", "division", "subdivision", "substation", "feeder", "dtr", "new_meter_type"]:
+            val = filters.get(field)
+            if val:
+                q = q.filter(getattr(MITechnicianProductivityDashboard, field).ilike(val))
+
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
+        if start_date:
+            q = q.filter(MITechnicianProductivityDashboard.installation_date >= func.to_date(start_date, "YYYY-MM-DD"))
+        if end_date:
+            q = q.filter(MITechnicianProductivityDashboard.installation_date <= func.to_date(end_date, "YYYY-MM-DD"))
+
+        # bucket label
+        if duration == "daily":
+            bucket_expr = func.to_char(MITechnicianProductivityDashboard.installation_date, "YYYY-MM-DD")
+        elif duration == "weekly":
+            bucket_expr = func.to_char(func.date_trunc("week", MITechnicianProductivityDashboard.installation_date), "YYYY-MM-DD")
+        else:
+            # monthly default
+            bucket_expr = func.to_char(MITechnicianProductivityDashboard.installation_date, "YYYY-MM")
+
+        # daily stats (the KPI 2.5 base)
+        daily_sq = q.with_entities(
+            bucket_expr.label("bucket"),
+            MITechnicianProductivityDashboard.installation_date.label("installation_date"),
+            func.sum(MITechnicianProductivityDashboard.total_installations).label("daily_installations"),
+            func.count(func.distinct(MITechnicianProductivityDashboard.technician)).label("daily_active_technicians"),
+            (
+                cast(func.sum(MITechnicianProductivityDashboard.total_installations), Float)
+                / func.count(func.distinct(MITechnicianProductivityDashboard.technician))
+            ).label("daily_prod"),
+        ).group_by(bucket_expr, MITechnicianProductivityDashboard.installation_date).subquery()
+
+        # summary
+        summary_row = self.session.query(
+            func.sum(daily_sq.c.daily_installations).label("total_installations"),
+            func.avg(daily_sq.c.daily_prod).label("avg_daily_prod"),
+            func.count(func.distinct(func.to_char(daily_sq.c.installation_date, "YYYY-MM"))).label("active_months"),
+        ).first()
+
+        summary = {
+            "total_installations": int(summary_row.total_installations or 0) if summary_row else 0,
+            "total_active_months": int(summary_row.active_months or 0) if summary_row else 0,
+            "productivity_per_technician_per_day": round(float(summary_row.avg_daily_prod or 0), 2) if summary_row else 0.0,
+        }
+
+        # trend (one row per bucket)
+        trend_rows = self.session.query(
+            daily_sq.c.bucket.label("bucket"),
+            func.sum(daily_sq.c.daily_installations).label("total_installations"),
+            func.count(func.distinct(daily_sq.c.installation_date)).label("active_days"),
+            func.avg(daily_sq.c.daily_active_technicians).label("avg_active_technicians"),
+            func.avg(daily_sq.c.daily_prod).label("avg_daily_prod"),
+        ).group_by(daily_sq.c.bucket).all()
+
+        trend = [
+            {
+                "month": str(r.bucket),
+                "total_installations": int(r.total_installations or 0),
+                "active_days": int(r.active_days or 0),
+                "avg_active_technicians": round(float(r.avg_active_technicians or 0), 2),
+                "productivity_per_technician_per_day": round(float(r.avg_daily_prod or 0), 2),
+            }
+            for r in trend_rows
+        ]
+        trend = sorted(trend, key=lambda x: x["month"])
+
+        # comparison label rules (same as KPI 2.5 / KPI 1 conventions)
+        if level in ("divison",):
+            level = "division"
+        if level in ("subdivison",):
+            level = "subdivision"
+
+        valid_levels = {"project", "discom", "zone", "circle", "division", "subdivision"}
+        if level not in valid_levels:
+            level = "discom"
+
+        if project == "all" and level in ("project", "discom"):
+            label_expr = func.upper(func.trim(MITechnicianProductivityDashboard.project))
+        else:
+            if level == "project":
+                level_col = func.upper(func.trim(MITechnicianProductivityDashboard.project))
+            else:
+                level_col = getattr(MITechnicianProductivityDashboard, level)
+            if project == "all" and level not in ("project", "discom"):
+                label_expr = func.concat(
+                    func.upper(func.trim(MITechnicianProductivityDashboard.project)),
+                    " | ",
+                    func.coalesce(level_col, "Unknown"),
+                )
+            else:
+                label_expr = func.coalesce(level_col, "Unknown")
+
+        daily_comp_sq = q.with_entities(
+            label_expr.label("label"),
+            MITechnicianProductivityDashboard.installation_date.label("installation_date"),
+            func.sum(MITechnicianProductivityDashboard.total_installations).label("daily_installations"),
+            func.count(func.distinct(MITechnicianProductivityDashboard.technician)).label("daily_active_technicians"),
+            (
+                cast(func.sum(MITechnicianProductivityDashboard.total_installations), Float)
+                / func.count(func.distinct(MITechnicianProductivityDashboard.technician))
+            ).label("daily_prod"),
+        ).group_by(label_expr, MITechnicianProductivityDashboard.installation_date).subquery()
+
+        comp_rows = self.session.query(
+            daily_comp_sq.c.label,
+            func.sum(daily_comp_sq.c.daily_installations).label("total_installations"),
+            func.count(func.distinct(daily_comp_sq.c.installation_date)).label("active_days"),
+            func.avg(daily_comp_sq.c.daily_active_technicians).label("avg_active_technicians"),
+            func.avg(daily_comp_sq.c.daily_prod).label("avg_daily_prod"),
+        ).group_by(daily_comp_sq.c.label).all()
+
+        comparison = [
+            {
+                "label": str(r.label) if r.label is not None else "Unknown",
+                "total_installations": int(r.total_installations or 0),
+                "active_days": int(r.active_days or 0),
+                "avg_active_technicians": round(float(r.avg_active_technicians or 0), 2),
+                "productivity_per_technician_per_day": round(float(r.avg_daily_prod or 0), 2),
+            }
+            for r in comp_rows
+        ]
+
+        # category breakdown (optional dashboard slice)
+        daily_cat_sq = q.with_entities(
+            MITechnicianProductivityDashboard.meter_category.label("meter_category"),
+            MITechnicianProductivityDashboard.installation_date.label("installation_date"),
+            func.sum(MITechnicianProductivityDashboard.total_installations).label("daily_installations"),
+            func.count(func.distinct(MITechnicianProductivityDashboard.technician)).label("daily_active_technicians"),
+            (
+                cast(func.sum(MITechnicianProductivityDashboard.total_installations), Float)
+                / func.count(func.distinct(MITechnicianProductivityDashboard.technician))
+            ).label("daily_prod"),
+        ).group_by(MITechnicianProductivityDashboard.meter_category, MITechnicianProductivityDashboard.installation_date).subquery()
+
+        cat_rows = self.session.query(
+            daily_cat_sq.c.meter_category,
+            func.sum(daily_cat_sq.c.daily_installations).label("total_installations"),
+            func.count(func.distinct(daily_cat_sq.c.installation_date)).label("active_days"),
+            func.avg(daily_cat_sq.c.daily_active_technicians).label("avg_active_technicians"),
+            func.avg(daily_cat_sq.c.daily_prod).label("avg_daily_prod"),
+        ).group_by(daily_cat_sq.c.meter_category).all()
+
+        category_breakdown: Dict[str, Any] = {
+            (str(r.meter_category) if r.meter_category is not None else "Unknown"): {
+                "total_installations": int(r.total_installations or 0),
+                "active_days": int(r.active_days or 0),
+                "avg_active_technicians": round(float(r.avg_active_technicians or 0), 2),
+                "productivity_per_technician_per_day": round(float(r.avg_daily_prod or 0), 2),
+            }
+            for r in cat_rows
+        }
+
+        if category_param == "total":
+            for expected_cat in ("CONSUMER", "FEEDER", "DT"):
+                category_breakdown.setdefault(
+                    expected_cat,
+                    {
+                        "total_installations": 0,
+                        "active_days": 0,
+                        "avg_active_technicians": 0.0,
+                        "productivity_per_technician_per_day": 0.0,
+                    },
+                )
+
+        return {
+            "summary": summary,
+            "trend": trend,
+            "comparison": comparison,
+            "category_breakdown": category_breakdown,
+        }
+
     def get_monthly_productivity(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         q = self.session.query(MonthlyProductivity)
         q = self._apply_filters(q, MonthlyProductivity, filters)

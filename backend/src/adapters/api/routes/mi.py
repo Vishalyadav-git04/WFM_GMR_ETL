@@ -15,6 +15,7 @@ from adapters.api.schemas import (
     DefectiveMetersSummaryOut,
     MIProgressDashboardOut,
     MITeamProductivityDashboardOut,
+    MIProductivityTrendDashboardOut,
 )
 
 router = APIRouter(prefix="/api/mi", tags=["MI KPIs"])
@@ -104,6 +105,41 @@ def get_mi_productivity_team_dashboard(
     filters.pop("mi_usecase")
     result = mi_usecase.get_productivity_team_dashboard(filters)
     return MITeamProductivityDashboardOut(**result)
+
+
+@router.get(
+    "/productivity/trend/dashboard",
+    response_model=MIProductivityTrendDashboardOut,
+    summary="MI Technician Productivity Trend Dashboard (Monthly by default)",
+)
+def get_mi_productivity_trend_dashboard(
+    duration: Optional[str] = Query(
+        "monthly",
+        description="Aggregation granularity: daily / weekly / monthly (default: monthly)",
+    ),
+    level: Optional[str] = Query(
+        "discom",
+        description="Cluster level for comparison: project, discom, zone, circle, division, subdivision",
+    ),
+    project: Optional[str] = Query("all", description="Project filter: all / AGRA / KASHI / TRIVENI"),
+    category: Optional[str] = Query("total", description="Meter category: total / consumer / feeder / dt"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    discom: Optional[str] = None,
+    zone: Optional[str] = None,
+    circle: Optional[str] = None,
+    division: Optional[str] = None,
+    subdivision: Optional[str] = None,
+    substation: Optional[str] = None,
+    feeder: Optional[str] = None,
+    dtr: Optional[str] = None,
+    new_meter_type: Optional[str] = None,
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    filters = locals()
+    filters.pop("mi_usecase")
+    result = mi_usecase.get_productivity_trend_dashboard(filters)
+    return MIProductivityTrendDashboardOut(**result)
 
 @router.get("/monthly-productivity", response_model=List[MonthlyProductivityOut], summary="Get Monthly Productivity List")
 def get_monthly_productivity(
