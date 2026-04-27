@@ -2,9 +2,8 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from domain.interfaces import IOMRepository
-from domain.entities import OMProductivityTeamEntity, ComplaintEntity
 from .models import (
-    OMProductivityTeam, OMProductivityTrend, OMOpenAgeing,
+    OMOpenAgeing,
     OMAvgClosureTime, OMClosedAnalysis, ComplaintsMaster,
     OMTeamProductivityDashboard
 )
@@ -40,18 +39,6 @@ class SQLAlchemyOMRepository(IOMRepository):
                 query = query.filter(model.period_value <= end_date)
                 
         return query
-
-    def get_productivity_team(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(OMProductivityTeam)
-        q = self._apply_filters(q, OMProductivityTeam, filters)
-        period = filters.get("period") or "daily"
-        q = q.filter(OMProductivityTeam.period_type == period.lower())
-        return q.offset(offset).limit(limit).all()
-
-    def get_productivity_trend(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(OMProductivityTrend)
-        q = self._apply_filters(q, OMProductivityTrend, filters)
-        return q.offset(offset).limit(limit).all()
 
     def get_open_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
         q = self.session.query(OMOpenAgeing)
@@ -753,6 +740,3 @@ class SQLAlchemyOMRepository(IOMRepository):
             "comparison": comparison,
             "category_breakdown": category_breakdown
         }
-
-    def save_productivity_team(self, entities: List[OMProductivityTeamEntity]):
-        pass

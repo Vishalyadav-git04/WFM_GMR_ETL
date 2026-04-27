@@ -61,13 +61,6 @@ class MIProgressDashboardOut(BaseModel):
     comparison: List[MIProgressDashboardComparisonItem] = Field(default_factory=list, description="Comparison-by-cluster bar chart data")
 
 
-class MIProductivityOut(MIDimensionBase):
-    technician: Optional[str] = Field(None, description="Name of the technician")
-    period_type: Optional[str] = Field(None, description="Grouping period: daily, weekly, or monthly")
-    period_value: Optional[str] = Field(None, description="The specific date or period value")
-    daily_installations: Optional[int] = Field(None, description="Total installations done by this technician")
-
-
 class MITeamProductivitySummary(BaseModel):
     total_installations: int = 0
     total_active_technicians: int = 0
@@ -131,27 +124,6 @@ class MIProductivityTrendDashboardOut(BaseModel):
     category_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
 
-class MonthlyProductivityOut(MIDimensionBase):
-    period_type: Optional[str] = Field(None, description="Usually 'monthly'")
-    period_value: Optional[str] = Field(None, description="Month in YYYY-MM format")
-    location_monthly_installations: Optional[int] = Field(None, description="Installations for this specific location/month")
-    total_monthly_installations: Optional[int] = Field(None, description="Global total installations for this month (across all regions)")
-
-class MonthlyProductivitySummaryOut(BaseModel):
-    total_installations: int = Field(..., description="Total cumulative installations for the selected month/filters")
-    period_value: Optional[str] = Field(None, description="Month in YYYY-MM format")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
-
-
-class InventoryUtilizationOut(MIDimensionBase):
-    period_type: Optional[str] = Field(None, description="Grouping period")
-    period_value: Optional[str] = Field(None, description="The specific date or period value")
-    total_inventory: Optional[int] = Field(None, description="Total stock available")
-    total_installed: Optional[int] = Field(None, description="Total meters installed from stock")
-    utilization_rate_pct: Optional[float] = Field(None, description="Percentage of inventory utilized")
-    remaining_stock: Optional[int] = Field(None, description="Inventory still in stock")
-
 class InventoryUtilizationSummaryOut(BaseModel):
     total_inventory: int = Field(..., description="Total stock count")
     total_installed: int = Field(..., description="Total installed count")
@@ -165,22 +137,6 @@ class InventoryUtilizationSummaryOut(BaseModel):
 class PaceVsStockSummaryOut(InventoryUtilizationSummaryOut):
     """Same structure as Inventory Utilization but frontend uses remaining_stock instead of utilization_rate_pct in comparison."""
     pass
-
-
-class StockAgeingOut(BaseModel):
-    # Backward compatibility or granular view if needed
-    age_0_30: Optional[int] = 0
-    age_31_60: Optional[int] = 0
-    age_61_90: Optional[int] = 0
-    age_90_plus: Optional[int] = 0
-
-    class Config:
-        from_attributes = True
-
-
-class StockAgeingSummaryOut(BaseModel):
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
 
 class StockAgeingPeriodTrendPoint(BaseModel):
@@ -209,23 +165,6 @@ class StockAgeingDashboardOut(BaseModel):
 
 
 
-class MIvsSATOut(MIDimensionBase):
-    period_type: Optional[str] = Field(None, description="Grouping period: daily")
-    period_value: Optional[str] = Field(None, description="The specific date value")
-    total_mi: Optional[int] = Field(None, description="Total Meters Installed")
-    total_sat: Optional[int] = Field(None, description="Total SATs completed")
-    sat_1: Optional[int] = Field(0, description="SAT Stage 1 count")
-    sat_2: Optional[int] = Field(0, description="SAT Stage 2 count")
-    sat_3: Optional[int] = Field(0, description="SAT Stage 3 count")
-    sat_4: Optional[int] = Field(0, description="SAT Stage 4 count")
-    sat_5: Optional[int] = Field(0, description="SAT Stage 5 count")
-    sat_6: Optional[int] = Field(0, description="SAT Stage 6 count")
-    sat_7: Optional[int] = Field(0, description="SAT Stage 7 count")
-    sat_8: Optional[int] = Field(0, description="SAT Stage 8 count")
-    sat_9: Optional[int] = Field(0, description="SAT Stage 9 count")
-    sat_progress_pct: Optional[float] = Field(None, description="Percentage of SAT completion vs MI")
-
-
 class MIvsSATComparisonItem(BaseModel):
     label: str = Field(..., description="Bar label (project or project|level label)")
     CONSUMER: int = Field(0, description="Total MI count for CONSUMER category")
@@ -252,12 +191,6 @@ class MIvsSATSummaryOut(BaseModel):
     category_breakdown: Dict[str, Any] = Field(default_factory=dict)
     period_breakdown: Dict[str, Any] = Field(default_factory=dict)
     comparison: List[MIvsSATComparisonItem] = Field(default_factory=list, description="Comparison-by-cluster bar chart data")
-
-
-class MINonSATAgeingOut(MIDimensionBase):
-    meter_serial_number: Optional[str] = Field(None, description="Unique Meter Serial Number")
-    installation_date: Optional[date] = Field(None, description="Date of installation")
-    ageing_days: Optional[int] = Field(None, description="Number of days since installation (Ageing)")
 
 
 class NonSATAgeingPeriodTrendPoint(BaseModel):
@@ -320,32 +253,6 @@ MeterJourneyWholeDays = Annotated[
     Optional[int],
     BeforeValidator(_meter_journey_whole_days),
 ]
-
-
-class MeterJourneyOut(MIDimensionBase):
-    inventory_to_store: MeterJourneyWholeDays = Field(
-        None,
-        description="Avg whole days inventory to store (ceil of mean; see contract)",
-    )
-    store_to_agency: MeterJourneyWholeDays = Field(
-        None, description="Avg whole days store handoff to agency (ceil of mean)"
-    )
-    agency_to_meter_installation: MeterJourneyWholeDays = Field(
-        None, description="Avg whole days agency to meter installation (ceil of mean)"
-    )
-    meter_installation_to_sat: MeterJourneyWholeDays = Field(
-        None, description="Avg whole days installation to SAT (ceil of mean)"
-    )
-    sat_to_invoice: MeterJourneyWholeDays = Field(None, description="Avg whole days SAT to PMPM invoice (ceil of mean)")
-    invoice_to_revenue: MeterJourneyWholeDays = Field(
-        None, description="Avg whole days PMPM invoice to revenue (ceil of mean)"
-    )
-    total_journey: MeterJourneyWholeDays = Field(None, description="Avg whole end-to-end days (ceil of mean)")
-    period_type: Optional[str] = Field(
-        None, description="ETL bucket: daily, weekly, or monthly (pmpm_collection_date)"
-    )
-    period_value: Optional[str] = Field(None, description="Bucket label, typically DD-MM-YY")
-    meter_count: Optional[int] = Field(None, description="Meters in this aggregate (revenue-completed cohort)")
 
 
 class MeterJourneyDashboardTrendPoint(BaseModel):
@@ -510,14 +417,6 @@ class OMDimensionBase(BaseModel):
         from_attributes = True
 
 
-class OMProductivityTeamOut(OMDimensionBase):
-    technician: Optional[str] = None
-    agency: Optional[str] = None
-    period_type: Optional[str] = None
-    period_value: Optional[str] = None
-    closed_tickets: Optional[int] = None
-
-
 class OMTeamProductivitySummary(BaseModel):
     total_closed_tickets: int = 0
     total_active_technicians: int = 0
@@ -545,11 +444,6 @@ class OMTeamProductivityDashboardOut(BaseModel):
     trend: List[OMTeamProductivityTrendPoint] = Field(default_factory=list)
     comparison: List[OMTeamProductivityComparisonItem] = Field(default_factory=list)
     category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-
-
-class OMProductivityTrendOut(OMDimensionBase):
-    closed_month: Optional[str] = None
-    total_closed_tickets: Optional[int] = None
 
 
 class OMProductivityTrendSummary(BaseModel):
@@ -589,20 +483,20 @@ class OMOpenAgeingBucketBreakdown(BaseModel):
     others: int = 0
 
 class OMOpenAgeingBuckets(BaseModel):
-    age_less_than_3_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
-    age_less_than_7_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
-    age_less_than_15_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
-    age_less_than_30_days: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
-    age_less_than_3_months: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
-    age_less_than_6_months: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
-    age_6_months_and_above: OMOpenAgeingBucketBreakdown = Field(default_factory=OMOpenAgeingBucketBreakdown)
+    age_less_than_3_days: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
+    age_less_than_7_days: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
+    age_less_than_15_days: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
+    age_less_than_30_days: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
+    age_less_than_3_months: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
+    age_less_than_6_months: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
+    age_6_months_and_above: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
 
 class OMOpenAgeingSummary(BaseModel):
     total_open: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
-    age_buckets: OMOpenAgeingBuckets = Field(default_factory=OMOpenAgeingBuckets)
+    age_buckets: OMOpenAgeingBuckets = Field(default_factory=lambda: OMOpenAgeingBuckets.model_validate({}))
 
 class OMOpenAgeingTrendPoint(BaseModel):
     period_value: str
@@ -617,7 +511,7 @@ class OMOpenAgeingComparisonItem(BaseModel):
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
-    age_buckets: OMOpenAgeingBuckets = Field(default_factory=OMOpenAgeingBuckets)
+    age_buckets: OMOpenAgeingBuckets = Field(default_factory=lambda: OMOpenAgeingBuckets.model_validate({}))
 
 class OMOpenAgeingCategoryBreakdown(OMOpenAgeingSummary):
     pass

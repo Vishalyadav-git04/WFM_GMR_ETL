@@ -50,14 +50,6 @@ class MIProgress(MIDimensionMixin, Base):
     total_mi_progress = Column(BigInteger)
 
 
-class MIProductivity(MIDimensionMixin, Base):
-    __tablename__ = "sql_mi_productivity"
-    technician = Column(String(200))
-    period_type = Column(String(10))   # daily / weekly / monthly
-    period_value = Column(String(50))  # the date or week/month string
-    daily_installations = Column(BigInteger)
-
-
 class MITechnicianProductivityDashboard(MIDimensionMixin, Base):
     """
     Daily pre-aggregated verified installations per technician.
@@ -69,14 +61,6 @@ class MITechnicianProductivityDashboard(MIDimensionMixin, Base):
     total_installations = Column(BigInteger, nullable=False, default=0)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now())
-
-
-class MonthlyProductivity(MIDimensionMixin, Base):
-    __tablename__ = "sql_monthly_productivity"
-    period_type = Column(String(10))   # monthly
-    period_value = Column(String(50))  # the month string
-    location_monthly_installations = Column(BigInteger)
-    total_monthly_installations = Column(BigInteger)
 
 
 class InventoryUtilization(MIDimensionMixin, Base):
@@ -257,14 +241,6 @@ class DashboardCommandCenterMilestone(Base):
 
 # ── O&M KPI Tables ─────────────────────────────────────────────────────
 
-class OMProductivityTeam(OMDimensionMixin, Base):
-    __tablename__ = "sql_om_productivity_team"
-    technician = Column(String(200))
-    agency = Column(String(200))
-    period_type = Column(String(10))   # daily / weekly / monthly
-    period_value = Column(String(50))  # the date or month string
-    closed_tickets = Column(BigInteger)
-
 class OMTeamProductivityDashboard(Base):
     __tablename__ = "sql_om_team_productivity_dashboard"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -278,12 +254,6 @@ class OMTeamProductivityDashboard(Base):
     technician = Column(String(200))
     closed_day = Column(Date)
     closed_tickets = Column(BigInteger)
-
-
-class OMProductivityTrend(OMDimensionMixin, Base):
-    __tablename__ = "sql_om_productivity_trend"
-    closed_month = Column(String(20))
-    total_closed_tickets = Column(BigInteger)
 
 
 class OMOpenAgeing(OMDimensionMixin, Base):

@@ -17,9 +17,7 @@ from infrastructure.database.setup import get_engine
 from adapters.repository.sql_models import Base
 from modules.mi.sql_transform import (
     execute_kpi_1_mi_progress,
-    execute_kpi_2_mi_productivity,
     execute_kpi_2_5_mi_technician_productivity_dashboard,
-    execute_kpi_3_monthly_productivity,
     execute_kpi_4_5_inventory_utilization,
     execute_kpi_6_stock_ageing,
     execute_kpi_7_mi_vs_sat,
@@ -35,8 +33,6 @@ from modules.mi.sql_transform import (
     execute_kpi_14_defective_meters
 )
 from modules.om.sql_transform import (
-    execute_om_productivity_team,
-    execute_om_productivity_trend,
     execute_om_open_ageing,
     execute_om_avg_closure_time,
     execute_om_closed_analysis,
@@ -60,9 +56,7 @@ def run_mi_sql_pipeline():
     
     # Execute MI KPIs
     execute_kpi_1_mi_progress(engine)
-    execute_kpi_2_mi_productivity(engine)
     execute_kpi_2_5_mi_technician_productivity_dashboard(engine)
-    execute_kpi_3_monthly_productivity(engine)
     execute_kpi_4_5_inventory_utilization(engine)
     execute_kpi_6_stock_ageing(engine)
     execute_kpi_7_mi_vs_sat(engine)
@@ -90,8 +84,6 @@ def run_om_sql_pipeline():
     engine = get_engine()
     
     # Execute O&M KPIs
-    execute_om_productivity_team(engine)
-    execute_om_productivity_trend(engine)
     execute_om_open_ageing(engine)
     execute_om_avg_closure_time(engine)
     execute_om_closed_analysis(engine)

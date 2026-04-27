@@ -1,15 +1,13 @@
 from fastapi import APIRouter, Depends, Query
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
 from infrastructure.database.setup import get_session
 from adapters.repository.sqlalchemy_mi_repo import SQLAlchemyMIRepository
 from usecases.mi.mi_usecase import MIUseCase
 from adapters.api.schemas import (
-    MIProductivityOut,
-    MonthlyProductivityOut, MonthlyProductivitySummaryOut,
-    InventoryUtilizationOut, InventoryUtilizationSummaryOut, PaceVsStockSummaryOut,
-    StockAgeingOut, StockAgeingSummaryOut, MIvsSATOut, MIvsSATSummaryOut, StockAgeingDashboardOut,
-    MINonSATAgeingOut, NonSATAgeingDashboardOut, MeterJourneyOut, MeterJourneyDashboardOut,
+    InventoryUtilizationSummaryOut, PaceVsStockSummaryOut,
+    MIvsSATSummaryOut, StockAgeingDashboardOut,
+    NonSATAgeingDashboardOut, MeterJourneyDashboardOut,
     MeterStageFunnelSummaryOut,
     MIvsSATvsInvoiceSummaryOut, RevenueRealizedSummaryOut, RevenueAgeingSummaryOut,
     DefectiveMetersSummaryOut,
@@ -53,32 +51,6 @@ def get_mi_progress_dashboard(
     filters.pop("mi_usecase")
     result = mi_usecase.get_progress_dashboard(filters)
     return MIProgressDashboardOut(**result)
-
-@router.get("/productivity", response_model=List[MIProductivityOut], summary="Get MI Productivity (Per Technician)")
-def get_mi_productivity(
-    period: Optional[str] = Query(None, description="Filter by period: daily, weekly, or monthly"),
-    discom: Optional[str] = None,
-    zone: Optional[str] = None,
-    circle: Optional[str] = None,
-    division: Optional[str] = None,
-    subdivision: Optional[str] = None,
-    substation: Optional[str] = None,
-    feeder: Optional[str] = None,
-    dtr: Optional[str] = None,
-    new_meter_type: Optional[str] = None,
-    meter_category: Optional[str] = None,
-    technician: Optional[str] = None,
-    limit: int = Query(1000, le=50000),
-    offset: int = Query(0, ge=0),
-    project: Optional[str] = None,
-    start_date: Optional[str] = Query(None, description="Start date for filtering"),
-    end_date: Optional[str] = Query(None, description="End date for filtering"),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_mi_productivity(filters, limit, offset)
-
 
 @router.get("/productivity/team/dashboard",
             response_model=MITeamProductivityDashboardOut,
@@ -141,77 +113,6 @@ def get_mi_productivity_trend_dashboard(
     result = mi_usecase.get_productivity_trend_dashboard(filters)
     return MIProductivityTrendDashboardOut(**result)
 
-@router.get("/monthly-productivity", response_model=List[MonthlyProductivityOut], summary="Get Monthly Productivity List")
-def get_monthly_productivity(
-    discom: Optional[str] = None,
-    zone: Optional[str] = None,
-    circle: Optional[str] = None,
-    division: Optional[str] = None,
-    subdivision: Optional[str] = None,
-    substation: Optional[str] = None,
-    feeder: Optional[str] = None,
-    dtr: Optional[str] = None,
-    new_meter_type: Optional[str] = None,
-    meter_category: Optional[str] = None,
-    period_value: Optional[str] = Query(None, description="Month in YYYY-MM format"),
-    limit: int = Query(1000, le=50000),
-    offset: int = Query(0, ge=0),
-    project: Optional[str] = None,
-    start_date: Optional[str] = Query(None, description="Start date for filtering"),
-    end_date: Optional[str] = Query(None, description="End date for filtering"),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_monthly_productivity(filters, limit, offset)
-
-@router.get("/monthly-productivity/summary", response_model=MonthlyProductivitySummaryOut, summary="Get Monthly Installations Total")
-def get_monthly_productivity_summary(
-    discom: Optional[str] = None,
-    zone: Optional[str] = None,
-    circle: Optional[str] = None,
-    division: Optional[str] = None,
-    subdivision: Optional[str] = None,
-    substation: Optional[str] = None,
-    feeder: Optional[str] = None,
-    dtr: Optional[str] = None,
-    new_meter_type: Optional[str] = None,
-    meter_category: Optional[str] = None,
-    period_value: Optional[str] = Query(None, description="Month in YYYY-MM format"),
-    project: Optional[str] = None,
-    start_date: Optional[str] = Query(None, description="Start date for filtering"),
-    end_date: Optional[str] = Query(None, description="End date for filtering"),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    result = mi_usecase.get_monthly_productivity_summary(filters)
-    return MonthlyProductivitySummaryOut(**result)
-
-@router.get("/inventory-utilization", response_model=List[InventoryUtilizationOut], summary="Get Inventory Utilization Trend")
-def get_inventory_utilization(
-    period: Optional[str] = Query(None, description="Filter by period: daily, weekly, or monthly"),
-    discom: Optional[str] = None,
-    zone: Optional[str] = None,
-    circle: Optional[str] = None,
-    division: Optional[str] = None,
-    subdivision: Optional[str] = None,
-    substation: Optional[str] = None,
-    feeder: Optional[str] = None,
-    dtr: Optional[str] = None,
-    new_meter_type: Optional[str] = None,
-    meter_category: Optional[str] = None,
-    limit: int = Query(1000, le=50000),
-    offset: int = Query(0, ge=0),
-    project: Optional[str] = None,
-    start_date: Optional[str] = Query(None, description="Start date for filtering"),
-    end_date: Optional[str] = Query(None, description="End date for filtering"),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_inventory_utilization(filters, limit, offset)
-
 @router.get("/inventory-utilization/summary", response_model=InventoryUtilizationSummaryOut, summary="Get Inventory Utilization Aggregated Summary")
 def get_inventory_utilization_summary(
     duration: Optional[str] = Query("daily", description="Aggregation granularity: daily, weekly, or monthly"),
@@ -236,20 +137,6 @@ def get_inventory_utilization_summary(
     filters.pop("mi_usecase")
     result = mi_usecase.get_inventory_utilization_summary(filters)
     return InventoryUtilizationSummaryOut(**result)
-
-@router.get("/pace-vs-stock", response_model=List[InventoryUtilizationOut], summary="Get MI Pace vs Stock Trend")
-def get_pace_vs_stock(
-    period: Optional[str] = Query(None, description="Filter by period: daily, weekly, or monthly"),
-    discom: Optional[str] = None,
-    zone: Optional[str] = None,
-    project: Optional[str] = None,
-    limit: int = Query(1000),
-    offset: int = Query(0),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_pace_vs_stock(filters, limit, offset)
 
 @router.get("/pace-vs-stock/summary", response_model=PaceVsStockSummaryOut, summary="Get MI Pace vs Stock Aggregated Summary")
 def get_pace_vs_stock_summary(
@@ -277,49 +164,6 @@ def get_pace_vs_stock_summary(
     result = mi_usecase.get_pace_vs_stock_summary(filters)
     return PaceVsStockSummaryOut(**result)
 
-@router.get("/stock-ageing", response_model=List[StockAgeingOut], summary="Get Unutilized Stock Ageing Detail")
-def get_stock_ageing(
-    discom: Optional[str] = None,
-    zone: Optional[str] = None,
-    circle: Optional[str] = None,
-    division: Optional[str] = None,
-    subdivision: Optional[str] = None,
-    substation: Optional[str] = None,
-    feeder: Optional[str] = None,
-    dtr: Optional[str] = None,
-    new_meter_type: Optional[str] = None,
-    meter_category: Optional[str] = None,
-    project: Optional[str] = None,
-    limit: int = Query(100, le=1000),
-    offset: int = Query(0, ge=0),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_stock_ageing(filters, limit, offset)
-
-@router.get("/stock-ageing/summary", response_model=StockAgeingSummaryOut, summary="Get Stock Ageing Aggregated Summary")
-def get_stock_ageing_summary(
-    discom: Optional[str] = None,
-    zone: Optional[str] = None,
-    circle: Optional[str] = None,
-    division: Optional[str] = None,
-    subdivision: Optional[str] = None,
-    substation: Optional[str] = None,
-    feeder: Optional[str] = None,
-    dtr: Optional[str] = None,
-    new_meter_type: Optional[str] = None,
-    meter_category: Optional[str] = None,
-    project: Optional[str] = None,
-    start_date: Optional[str] = Query(None, description="Start date for filtering"),
-    end_date: Optional[str] = Query(None, description="End date for filtering"),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    result = mi_usecase.get_stock_ageing_summary(filters)
-    return StockAgeingSummaryOut(**result)
-
 @router.get("/stock-ageing/dashboard", response_model=StockAgeingDashboardOut, summary="Get Stock Ageing Dashboard")
 def get_stock_ageing_dashboard(
     duration: Optional[str] = Query("monthly", description="monthly, weekly, daily"),
@@ -338,18 +182,6 @@ def get_stock_ageing_dashboard(
     filters.pop("mi_usecase")
     result = mi_usecase.get_stock_ageing_dashboard(filters)
     return StockAgeingDashboardOut(**result)
-
-@router.get("/mi-vs-sat", response_model=List[MIvsSATOut], summary="Get MI vs SAT List")
-def get_mi_vs_sat(
-    project: Optional[str] = None,
-    discom: Optional[str] = None,
-    limit: int = Query(1000),
-    offset: int = Query(0),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_mi_vs_sat(filters, limit, offset)
 
 @router.get("/mi-vs-sat/summary", response_model=MIvsSATSummaryOut, summary="Get MI vs SAT Aggregated Summary")
 def get_mi_vs_sat_summary(
@@ -375,17 +207,6 @@ def get_mi_vs_sat_summary(
     result = mi_usecase.get_mi_vs_sat_summary(filters)
     return MIvsSATSummaryOut(**result)
 
-@router.get("/non-sat-ageing", response_model=List[MINonSATAgeingOut], summary="Get Non-SAT Ageing List")
-def get_non_sat_ageing(
-    project: Optional[str] = None,
-    limit: int = Query(1000),
-    offset: int = Query(0),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_non_sat_ageing(filters, limit, offset)
-
 @router.get("/non-sat-ageing/dashboard", response_model=NonSATAgeingDashboardOut, summary="Get Non SAT Ageing Dashboard")
 def get_non_sat_ageing_dashboard(
     duration: Optional[str] = Query("daily", description="monthly, weekly, daily"),
@@ -405,22 +226,6 @@ def get_non_sat_ageing_dashboard(
     filters.pop("mi_usecase")
     result = mi_usecase.get_non_sat_ageing_dashboard(filters)
     return NonSATAgeingDashboardOut(**result)
-
-@router.get("/meter-journey", response_model=List[MeterJourneyOut], summary="Get Meter Journey Avg Time")
-def get_meter_journey(
-    project: Optional[str] = None,
-    period_type: Optional[str] = Query(
-        "daily",
-        description="ETL bucket: daily, weekly, or monthly (default daily)",
-    ),
-    limit: int = Query(100),
-    offset: int = Query(0),
-    mi_usecase: MIUseCase = Depends(get_mi_usecase),
-):
-    filters = locals()
-    filters.pop("mi_usecase")
-    return mi_usecase.get_meter_journey(filters, limit, offset)
-
 
 @router.get(
     "/meter-journey/dashboard",

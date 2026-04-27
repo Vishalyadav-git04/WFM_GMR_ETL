@@ -21,6 +21,7 @@ INVENTORY_FILE = INPUT_DIR / "inventory_merged 2.csv"
 
 # Source Database Tables
 MI_SOURCE_TABLE = "unified_installation_inventory_data"
+OM_SOURCE_TABLE = "unified_complaints"
 
 # O&M complaint files
 OM_FILES = {

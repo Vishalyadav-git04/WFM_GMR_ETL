@@ -4,7 +4,7 @@ These tables prefix the original table names with `sql_` to allow
 pure SQL push-down logic to be safely tested alongside the original tables.
 """
 
-from sqlalchemy import Column, Integer, BigInteger, Float, String, Date, DateTime
+from sqlalchemy import Column, Integer, BigInteger, Float, String, Date, DateTime, Text, func
 from .models import Base, MIDimensionMixin, OMDimensionMixin
 
 # ── MI KPI Tables (Shadow) ───────────────────────────────────────────────────────
@@ -16,20 +16,13 @@ class SqlMIProgress(MIDimensionMixin, Base):
     total_mi_progress = Column(BigInteger)
 
 
-class SqlMIProductivity(MIDimensionMixin, Base):
-    __tablename__ = "sql_mi_productivity"
+class SqlMITechnicianProductivityDashboard(MIDimensionMixin, Base):
+    __tablename__ = "sql_mi_technician_productivity"
+    installation_date = Column(Date, nullable=False)
     technician = Column(String(200))
-    period_type = Column(String(10))   # daily / weekly / monthly
-    period_value = Column(String(50))  # the date or week/month string
-    daily_installations = Column(BigInteger)
-
-
-class SqlMonthlyProductivity(MIDimensionMixin, Base):
-    __tablename__ = "sql_monthly_productivity"
-    period_type = Column(String(10))   # monthly
-    period_value = Column(String(50))  # the month string
-    location_monthly_installations = Column(BigInteger)
-    total_monthly_installations = Column(BigInteger)
+    total_installations = Column(BigInteger, nullable=False, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now())
 
 
 class SqlInventoryUtilization(MIDimensionMixin, Base):
@@ -44,6 +37,36 @@ class SqlInventoryUtilization(MIDimensionMixin, Base):
 
 class SqlStockAgeing(MIDimensionMixin, Base):
     __tablename__ = "sql_stock_ageing"
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the date string
+    age_0_30 = Column(BigInteger, default=0)
+    age_31_60 = Column(BigInteger, default=0)
+    age_61_90 = Column(BigInteger, default=0)
+    age_90_plus = Column(BigInteger, default=0)
+
+
+class SqlMIvsSATvsInvoice(MIDimensionMixin, Base):
+    __tablename__ = "sql_mi_sat_invoice"
+    period_type = Column(String(10))   # monthly
+    period_value = Column(String(50))  # the date string
+    total_mi = Column(BigInteger)
+    total_sat = Column(BigInteger)
+    total_lumpsum_invoice = Column(BigInteger)
+    total_pmpm_invoice = Column(BigInteger)
+
+
+class SqlRevenueRealized(MIDimensionMixin, Base):
+    __tablename__ = "sql_revenue_realized"
+    period_type = Column(String(10))   # daily, weekly, monthly
+    period_value = Column(String(50))  # the date string (period bucket)
+    total_lumpsum_invoice = Column(BigInteger)
+    total_pmpm_invoice = Column(BigInteger)
+    total_lumpsum_collection = Column(BigInteger)
+    total_pmpm_collection = Column(BigInteger)
+
+
+class SqlRevenueAgeing(MIDimensionMixin, Base):
+    __tablename__ = "sql_revenue_ageing"
     period_type = Column(String(10))   # monthly
     period_value = Column(String(50))  # the date string
     age_0_30 = Column(BigInteger, default=0)
@@ -98,6 +121,14 @@ class SqlMeterCurrentStage(MIDimensionMixin, Base):
     installed = Column(BigInteger, nullable=False, default=0)
     sat_done = Column(BigInteger, nullable=False, default=0)
     revenue_collected = Column(BigInteger, nullable=False, default=0)
+
+
+class SqlDefectiveMeters(MIDimensionMixin, Base):
+    __tablename__ = "sql_defective_meters"
+    defective_type = Column(String(50))  # Meter Burnt, Meter Faulty, Others
+    period_type = Column(String(20))     # daily / weekly / monthly
+    period_value = Column(String(50))    # YYYY-MM-DD or DD-MM-YY or YYYY-MM
+    meter_count = Column(BigInteger)
 
 
 # ── Dashboard Command Center Tables ───────────────────────────────────────
@@ -172,21 +203,6 @@ class DashboardCommandCenterMilestone(Base):
 
 # ── O&M KPI Tables (Shadow) ─────────────────────────────────────────────────────
 
-class SqlOMProductivityTeam(OMDimensionMixin, Base):
-    __tablename__ = "sql_om_productivity_team"
-    technician = Column(String(200))
-    agency = Column(String(200))
-    period_type = Column(String(10))   # daily / weekly / monthly
-    period_value = Column(String(50))  # the date or month string
-    closed_tickets = Column(BigInteger)
-
-
-class SqlOMProductivityTrend(OMDimensionMixin, Base):
-    __tablename__ = "sql_om_productivity_trend"
-    closed_month = Column(String(20))
-    total_closed_tickets = Column(BigInteger)
-
-
 class SqlOMOpenAgeing(OMDimensionMixin, Base):
     __tablename__ = "sql_om_open_ageing"
     ticket_id = Column(String(100))
@@ -214,3 +230,30 @@ class SqlOMClosedAnalysis(OMDimensionMixin, Base):
     period_type = Column(String(10))
     period_value = Column(String(50))
     closed_tickets = Column(BigInteger)
+
+
+class SqlOMTeamProductivityDashboard(Base):
+    __tablename__ = "sql_om_team_productivity_dashboard"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    project = Column(String(200))
+    discom = Column(String(200))
+    zone = Column(String(200))
+    circle = Column(String(200))
+    division = Column(String(200))
+    subdivision = Column(String(200))
+    meter_category = Column(String(100))
+    technician = Column(String(200))
+    closed_day = Column(Date)
+    closed_tickets = Column(BigInteger)
+
+
+# ── ETL Run Log ─────────────────────────────────────────────────────────
+
+class ETLRunLog(Base):
+    __tablename__ = "etl_run_log"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline = Column(String(20))
+    status = Column(String(20))
+    started_at = Column(DateTime, server_default=func.now())
+    finished_at = Column(DateTime)
+    error = Column(Text)

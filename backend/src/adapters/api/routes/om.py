@@ -5,7 +5,7 @@ from infrastructure.database.setup import get_session
 from adapters.repository.sqlalchemy_om_repo import SQLAlchemyOMRepository
 from usecases.om.om_usecase import OMUseCase
 from adapters.api.schemas import (
-    OMProductivityTeamOut, OMProductivityTrendOut, OMOpenAgeingOut,
+    OMOpenAgeingOut,
     OMAvgClosureTimeOut, OMClosedAnalysisOut, OMTeamProductivityDashboardOut,
     OMProductivityTrendDashboardOut, OMOpenAgeingDashboardOut,
     OMAvgClosureTimeDashboardOut
@@ -20,24 +20,6 @@ def get_om_usecase():
         yield OMUseCase(repo)
     finally:
         session.close()
-
-@router.get("/productivity-team", response_model=List[OMProductivityTeamOut], summary="Get O&M Productivity per Team")
-def get_productivity_team(
-    discom: Optional[str] = None, zone: Optional[str] = None, circle: Optional[str] = None,
-    division: Optional[str] = None, subdivision: Optional[str] = None,
-    feeder: Optional[str] = None, dtr: Optional[str] = None,
-    project: Optional[str] = None, meter_category: Optional[str] = None,
-    om_category: Optional[str] = Query(None, description="Legacy alias for meter_category"),
-    period: Optional[str] = Query(None, description="daily | weekly | monthly"),
-    limit: int = Query(1000, le=50000), offset: int = Query(0, ge=0),
-    start_date: Optional[str] = None, end_date: Optional[str] = None,
-    om_usecase: OMUseCase = Depends(get_om_usecase),
-):
-    filters = locals()
-    filters.pop("om_usecase")
-    if filters.get("om_category") and not filters.get("meter_category"):
-        filters["meter_category"] = filters.pop("om_category")
-    return om_usecase.get_productivity_team(filters, limit, offset)
 
 @router.get("/productivity-team/dashboard",
             response_model=OMTeamProductivityDashboardOut,
@@ -61,23 +43,6 @@ def get_productivity_team_dashboard(
     filters = locals()
     filters.pop("om_usecase")
     return om_usecase.get_productivity_team_dashboard(filters)
-
-@router.get("/productivity-trend", response_model=List[OMProductivityTrendOut], summary="Get O&M Productivity Trend (Monthly)")
-def get_productivity_trend(
-    discom: Optional[str] = None, zone: Optional[str] = None, circle: Optional[str] = None,
-    division: Optional[str] = None, subdivision: Optional[str] = None,
-    feeder: Optional[str] = None, dtr: Optional[str] = None,
-    project: Optional[str] = None, meter_category: Optional[str] = None,
-    om_category: Optional[str] = Query(None, description="Legacy alias for meter_category"),
-    limit: int = Query(1000, le=50000), offset: int = Query(0, ge=0),
-    start_date: Optional[str] = None, end_date: Optional[str] = None,
-    om_usecase: OMUseCase = Depends(get_om_usecase),
-):
-    filters = locals()
-    filters.pop("om_usecase")
-    if filters.get("om_category") and not filters.get("meter_category"):
-        filters["meter_category"] = filters.pop("om_category")
-    return om_usecase.get_productivity_trend(filters, limit, offset)
 
 @router.get("/productivity-trend/dashboard",
             response_model=OMProductivityTrendDashboardOut,

@@ -5,7 +5,7 @@ from sqlalchemy import func, case
 from domain.interfaces import IMIRepository
 from domain.entities import MIProgressEntity, InventoryUtilizationEntity
 from .models import (
-    MIProgress, MIProductivity, MonthlyProductivity,
+    MIProgress,
     InventoryUtilization, StockAgeing, MIvsSAT, NonSATAgeing,
     MeterJourneyAvgTime, MeterCurrentStage,
     MIvsSATvsInvoice, RevenueRealized, RevenueAgeing,
@@ -256,17 +256,6 @@ class SQLAlchemyMIRepository(IMIRepository):
                 res[cat][met][vk] += val
                 res[cat]["total"][vk] += val
         return res
-
-
-    def get_mi_productivity(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(MIProductivity)
-        q = self._apply_filters(q, MIProductivity, filters)
-        period = filters.get("period") or "daily"
-        q = q.filter(MIProductivity.period_type == period.lower())
-        technician = filters.get("technician")
-        if technician:
-            q = q.filter(MIProductivity.technician == technician)
-        return q.offset(offset).limit(limit).all()
 
     def get_productivity_team_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -704,64 +693,8 @@ class SQLAlchemyMIRepository(IMIRepository):
             "category_breakdown": category_breakdown,
         }
 
-    def get_monthly_productivity(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(MonthlyProductivity)
-        q = self._apply_filters(q, MonthlyProductivity, filters)
-        period_value = filters.get("period_value")
-        if period_value:
-            q = q.filter(MonthlyProductivity.period_value == period_value)
-        return q.offset(offset).limit(limit).all()
-
-    def get_monthly_productivity_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
-        q = self.session.query(MonthlyProductivity)
-        period_value = filters.get("period_value")
-        if period_value:
-            q = q.filter(MonthlyProductivity.period_value == period_value)
-        q = self._apply_filters(q, MonthlyProductivity, filters)
-        
-        # 1. Total
-        total = q.with_entities(func.sum(MonthlyProductivity.location_monthly_installations)).scalar() or 0
-        
-        # 2. Nested Category Breakdown (No period)
-        cat_rows = q.with_entities(
-            MonthlyProductivity.meter_category,
-            MonthlyProductivity.new_meter_type,
-            func.sum(MonthlyProductivity.location_monthly_installations)
-        ).group_by(MonthlyProductivity.meter_category, MonthlyProductivity.new_meter_type).all()
-        category_breakdown = self._format_nested_breakdown(cat_rows, ["installations"])
-        
-        # 3. Nested Period Breakdown
-        per_rows = q.with_entities(
-            MonthlyProductivity.period_value,
-            MonthlyProductivity.meter_category,
-            MonthlyProductivity.new_meter_type,
-            func.sum(MonthlyProductivity.location_monthly_installations)
-        ).group_by(MonthlyProductivity.period_value, MonthlyProductivity.meter_category, MonthlyProductivity.new_meter_type).order_by(MonthlyProductivity.period_value).all()
-        period_breakdown = self._format_nested_breakdown(per_rows, ["installations"])
-
-        return {
-            "total_installations": int(total),
-            "period_value": period_value,
-            "category_breakdown": category_breakdown,
-            "period_breakdown": period_breakdown
-        }
-
-    def get_pace_vs_stock(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        # Implementation depends on specific requirement, 
-        # using InventoryUtilization as proxy if specific pace table not yet defined
-        q = self.session.query(InventoryUtilization)
-        q = self._apply_filters(q, InventoryUtilization, filters)
-        return q.offset(offset).limit(limit).all()
-
     def get_pace_vs_stock_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         return self.get_inventory_utilization_summary(filters)
-
-    def get_inventory_utilization(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(InventoryUtilization)
-        q = self._apply_filters(q, InventoryUtilization, filters)
-        period = filters.get("period") or "daily"
-        q = q.filter(InventoryUtilization.period_type == period.lower())
-        return q.offset(offset).limit(limit).all()
 
     def get_inventory_utilization_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         from datetime import datetime
@@ -935,13 +868,6 @@ class SQLAlchemyMIRepository(IMIRepository):
             "period_breakdown": period_breakdown,
             "comparison": comparison
         }
-
-
-
-    def get_mi_vs_sat(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(MIvsSAT)
-        q = self._apply_filters(q, MIvsSAT, filters)
-        return q.offset(offset).limit(limit).all()
 
     def get_mi_vs_sat_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy import func
@@ -1137,44 +1063,6 @@ class SQLAlchemyMIRepository(IMIRepository):
             "comparison": comparison,
         }
 
-
-    def get_stock_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(StockAgeing)
-        q = self._apply_filters(q, StockAgeing, filters)
-        return q.offset(offset).limit(limit).all()
-
-    def get_stock_ageing_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
-        """KPI 6: Stock Ageing summary."""
-        q = self.session.query(StockAgeing)
-        q = self._apply_filters(q, StockAgeing, filters)
-        
-        # Period Breakdown
-        p_rows = q.with_entities(
-            StockAgeing.period_value,
-            StockAgeing.meter_category,
-            StockAgeing.new_meter_type,
-            func.sum(StockAgeing.age_0_30),
-            func.sum(StockAgeing.age_31_60),
-            func.sum(StockAgeing.age_61_90),
-            func.sum(StockAgeing.age_90_plus)
-        ).group_by(StockAgeing.period_value, StockAgeing.meter_category, StockAgeing.new_meter_type).all()
-        
-        # Category Breakdown
-        c_rows = q.with_entities(
-            StockAgeing.meter_category,
-            StockAgeing.new_meter_type,
-            func.sum(StockAgeing.age_0_30),
-            func.sum(StockAgeing.age_31_60),
-            func.sum(StockAgeing.age_61_90),
-            func.sum(StockAgeing.age_90_plus)
-        ).group_by(StockAgeing.meter_category, StockAgeing.new_meter_type).all()
-        
-        vals = ["age_0_30", "age_31_60", "age_61_90", "age_90_plus"]
-        return {
-            "period_breakdown": self._format_nested_breakdown(p_rows, vals),
-            "category_breakdown": self._format_nested_breakdown(c_rows, vals)
-        }
-
     def get_stock_ageing_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         duration = (filters.get("duration") or "monthly").lower()
         level = (filters.get("level") or "discom").lower()
@@ -1331,11 +1219,6 @@ class SQLAlchemyMIRepository(IMIRepository):
             "period_breakdown": period_breakdown,
             "comparison": comparison
         }
-
-    def get_non_sat_ageing(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(NonSATAgeing)
-        q = self._apply_filters(q, NonSATAgeing, filters)
-        return q.offset(offset).limit(limit).all()
 
     def get_non_sat_ageing_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         duration = (filters.get("duration") or "daily").lower()
@@ -1525,11 +1408,6 @@ class SQLAlchemyMIRepository(IMIRepository):
             "period_breakdown": period_breakdown,
             "comparison": comparison
         }
-
-    def get_meter_journey(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(MeterJourneyAvgTime)
-        q = self._apply_filters(q, MeterJourneyAvgTime, filters)
-        return q.offset(offset).limit(limit).all()
 
     def _mj_whole_days(self, v) -> Optional[int]:
         """Journey day metrics: always round up partial days (``int(math.ceil(float(v)))``)."""

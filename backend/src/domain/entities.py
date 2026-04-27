@@ -36,20 +36,6 @@ class MIProgressEntity(MIDimension):
     total_mi_progress: int = 0
 
 @dataclass
-class MIProductivityEntity(MIDimension):
-    technician: str = ""
-    period_type: str = ""
-    period_value: str = ""
-    daily_installations: int = 0
-
-@dataclass
-class MonthlyProductivityEntity(MIDimension):
-    period_type: str = "monthly"
-    period_value: str = ""
-    location_monthly_installations: int = 0
-    total_monthly_installations: int = 0
-
-@dataclass
 class InventoryUtilizationEntity(MIDimension):
     period_type: str = ""
     period_value: str = ""
@@ -85,19 +71,6 @@ class NonSATAgeingEntity(MIDimension):
     meter_serial_number: str = ""
     installation_date: Optional[date] = None
     ageing_days: int = 0
-
-@dataclass
-class OMProductivityTeamEntity(OMDimension):
-    technician: str = ""
-    agency: str = ""
-    period_type: str = ""
-    period_value: str = ""
-    closed_tickets: int = 0
-
-@dataclass
-class OMProductivityTrendEntity(OMDimension):
-    closed_month: str = ""
-    total_closed_tickets: int = 0
 
 @dataclass
 class OMOpenAgeingEntity(OMDimension):
