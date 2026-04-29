@@ -477,7 +477,6 @@ class OMOpenAgeingOut(OMDimensionBase):
     agency: Optional[str] = None
 
 class OMOpenAgeingBucketBreakdown(BaseModel):
-    total: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
@@ -492,7 +491,6 @@ class OMOpenAgeingBuckets(BaseModel):
     age_6_months_and_above: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
 
 class OMOpenAgeingSummary(BaseModel):
-    total_open: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
@@ -500,14 +498,12 @@ class OMOpenAgeingSummary(BaseModel):
 
 class OMOpenAgeingTrendPoint(BaseModel):
     period_value: str
-    total_open: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
 
 class OMOpenAgeingComparisonItem(BaseModel):
     label: str
-    total_open: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
@@ -517,7 +513,6 @@ class OMOpenAgeingCategoryBreakdown(OMOpenAgeingSummary):
     pass
 
 class OMOpenAgeingDashboardOut(BaseModel):
-    total_open: int = Field(..., description="Overall total open tickets")
     summary: OMOpenAgeingSummary
     trend: List[OMOpenAgeingTrendPoint] = Field(default_factory=list)
     comparison: List[OMOpenAgeingComparisonItem] = Field(default_factory=list)

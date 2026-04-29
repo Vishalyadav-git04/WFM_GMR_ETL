@@ -22,7 +22,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development, allow all origins
+    # Explicitly allow known frontend origins (safer for production)
+    allow_origins=[
+        "https://gmr-en-i-i-analytics.gmrgroup.in",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

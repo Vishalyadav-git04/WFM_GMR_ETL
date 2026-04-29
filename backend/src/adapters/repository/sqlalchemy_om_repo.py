@@ -641,7 +641,6 @@ class SQLAlchemyOMRepository(IOMRepository):
         
         def extract_bucket(row, offset):
             return {
-                "total": int(row[offset] or 0),
                 "auto_ticketing": int(row[offset+1] or 0),
                 "1912_helpdesk": int(row[offset+2] or 0),
                 "others": int(row[offset+3] or 0)
@@ -649,7 +648,6 @@ class SQLAlchemyOMRepository(IOMRepository):
 
         if summary_row:
             summary = {
-                "total_open": int(summary_row[0] or 0),
                 "auto_ticketing": int(summary_row[1] or 0),
                 "1912_helpdesk": int(summary_row[2] or 0),
                 "others": int(summary_row[3] or 0),
@@ -664,7 +662,7 @@ class SQLAlchemyOMRepository(IOMRepository):
                 }
             }
         else:
-            summary = {"total_open": 0, "auto_ticketing": 0, "1912_helpdesk": 0, "others": 0, "age_buckets": {}}
+            summary = {"auto_ticketing": 0, "1912_helpdesk": 0, "others": 0, "age_buckets": {}}
 
         # --- Category Breakdown ---
         cat_rows = q.with_entities(OMOpenAgeing.meter_category, *base_aggs, *bucket_aggs).filter(OMOpenAgeing.meter_category.isnot(None)).group_by(OMOpenAgeing.meter_category).all()
@@ -672,7 +670,6 @@ class SQLAlchemyOMRepository(IOMRepository):
         for row in cat_rows:
             cat_name = str(row[0]) if row[0] else "Unknown"
             category_breakdown[cat_name] = {
-                "total_open": int(row[1] or 0),
                 "auto_ticketing": int(row[2] or 0),
                 "1912_helpdesk": int(row[3] or 0),
                 "others": int(row[4] or 0),
@@ -704,7 +701,6 @@ class SQLAlchemyOMRepository(IOMRepository):
             if not row[0]: continue
             trend.append({
                 "period_value": row[0],
-                "total_open": int(row[1] or 0),
                 "auto_ticketing": int(row[2] or 0),
                 "1912_helpdesk": int(row[3] or 0),
                 "others": int(row[4] or 0)
@@ -728,7 +724,6 @@ class SQLAlchemyOMRepository(IOMRepository):
             lbl = row[0]
             comparison.append({
                 "label": str(lbl) if lbl else "Unknown",
-                "total_open": int(row[1] or 0),
                 "auto_ticketing": int(row[2] or 0),
                 "1912_helpdesk": int(row[3] or 0),
                 "others": int(row[4] or 0),
@@ -744,7 +739,6 @@ class SQLAlchemyOMRepository(IOMRepository):
             })
 
         return {
-            "total_open": summary.get("total_open", 0),
             "summary": summary,
             "trend": trend,
             "comparison": comparison,
