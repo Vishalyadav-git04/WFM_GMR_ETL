@@ -23,8 +23,5 @@ class OMUseCase:
     def get_avg_closure_time_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         return self.om_repo.get_avg_closure_time_dashboard(filters)
 
-    def get_closed_analysis(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        return self.om_repo.get_closed_analysis(filters, limit, offset)
-
     def get_closed_analysis_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         return self.om_repo.get_closed_analysis_dashboard(filters)

@@ -556,14 +556,6 @@ class OMAvgClosureTimeDashboardOut(BaseModel):
     category_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
 
-class OMClosedAnalysisOut(OMDimensionBase):
-    complaint_type: Optional[str] = None
-    complaint_category: Optional[str] = None
-    period_type: Optional[str] = None
-    period_value: Optional[str] = None
-    closed_tickets: Optional[int] = None
-
-
 class OMClosedAnalysisDashboardSummary(BaseModel):
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")

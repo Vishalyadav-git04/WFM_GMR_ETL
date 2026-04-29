@@ -63,9 +63,6 @@ class IOMRepository(ABC):
     def get_avg_closure_time_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
 
     @abstractmethod
-    def get_closed_analysis(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
-
-    @abstractmethod
     def get_closed_analysis_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
 
 

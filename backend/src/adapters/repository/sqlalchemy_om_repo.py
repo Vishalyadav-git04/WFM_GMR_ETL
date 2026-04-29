@@ -52,13 +52,6 @@ class SQLAlchemyOMRepository(IOMRepository):
         q = q.filter(OMAvgClosureTime.period_type == period.lower())
         return q.offset(offset).limit(limit).all()
 
-    def get_closed_analysis(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]:
-        q = self.session.query(OMClosedAnalysis)
-        q = self._apply_filters(q, OMClosedAnalysis, filters)
-        period = filters.get("period") or "daily"
-        q = q.filter(OMClosedAnalysis.period_type == period.lower())
-        return q.offset(offset).limit(limit).all()
-
     def get_closed_analysis_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy import case, func
 
