@@ -65,6 +65,9 @@ class IOMRepository(ABC):
     @abstractmethod
     def get_closed_analysis(self, filters: Dict[str, Any], limit: int, offset: int) -> List[Any]: pass
 
+    @abstractmethod
+    def get_closed_analysis_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
 
 class IETLRepository(ABC):
     @abstractmethod

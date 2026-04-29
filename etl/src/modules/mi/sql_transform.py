@@ -375,8 +375,13 @@ def execute_kpi_8_non_sat_ageing(engine):
             mi_date::date,
             CURRENT_DATE - mi_date::date
         FROM {MI_SOURCE_TABLE}
-        WHERE mi_date IS NOT NULL AND sat_no IS NOT NULL AND TRIM(sat_no) != ''
-          AND (LOWER(TRIM(sat_no)) NOT LIKE 'sat-%');
+        WHERE mi_date IS NOT NULL
+          AND (
+            sat_no IS NULL
+            OR TRIM(sat_no) = ''
+            OR LOWER(TRIM(sat_no)) = 'sat pending'
+          )
+          AND (sat_no IS NULL OR LOWER(TRIM(sat_no)) NOT LIKE 'sat-%');
         """
         conn.execute(text(sql))
 def execute_kpi_9_meter_journey(engine):

@@ -562,3 +562,34 @@ class OMClosedAnalysisOut(OMDimensionBase):
     period_type: Optional[str] = None
     period_value: Optional[str] = None
     closed_tickets: Optional[int] = None
+
+
+class OMClosedAnalysisDashboardSummary(BaseModel):
+    auto_ticketing: int = 0
+    helpdesk_1912: int = Field(0, alias="1912_helpdesk")
+    others: int = 0
+
+
+class OMClosedAnalysisDashboardTrendPoint(BaseModel):
+    period_value: str
+    auto_ticketing: int = 0
+    helpdesk_1912: int = Field(0, alias="1912_helpdesk")
+    others: int = 0
+
+
+class OMClosedAnalysisDashboardComparisonItem(BaseModel):
+    label: str
+    auto_ticketing: int = 0
+    helpdesk_1912: int = Field(0, alias="1912_helpdesk")
+    others: int = 0
+
+
+class OMClosedAnalysisDashboardCategoryBreakdown(OMClosedAnalysisDashboardSummary):
+    pass
+
+
+class OMClosedAnalysisDashboardOut(BaseModel):
+    summary: OMClosedAnalysisDashboardSummary
+    trend: List[OMClosedAnalysisDashboardTrendPoint] = Field(default_factory=list)
+    comparison: List[OMClosedAnalysisDashboardComparisonItem] = Field(default_factory=list)
+    category_breakdown: Dict[str, OMClosedAnalysisDashboardCategoryBreakdown] = Field(default_factory=dict)

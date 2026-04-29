@@ -126,19 +126,96 @@ def execute_om_closed_analysis(engine):
     """KPI 5: Closed analysis."""
     log.info("Executing SQL for O&M KPI 5: Closed Analysis")
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE sql_om_closed_analysis CASCADE;"))
+        # Drop and recreate to ensure schema updates (adding complaint_by, closed_date, weekly/monthly rows)
+        conn.execute(text("DROP TABLE IF EXISTS sql_om_closed_analysis CASCADE;"))
+        conn.execute(text("""
+        CREATE TABLE sql_om_closed_analysis (
+            id BIGSERIAL PRIMARY KEY,
+            project VARCHAR(200),
+            discom VARCHAR(200),
+            zone VARCHAR(200),
+            circle VARCHAR(200),
+            division VARCHAR(200),
+            subdivision VARCHAR(200),
+            substation VARCHAR(200),
+            feeder VARCHAR(200),
+            dtr VARCHAR(200),
+            meter_category VARCHAR(100),
+            complaint_type VARCHAR(200),
+            complaint_category VARCHAR(200),
+            complaint_by VARCHAR(200),
+            period_type VARCHAR(10),
+            period_value VARCHAR(50),
+            closed_tickets BIGINT,
+            closed_date DATE
+        );
+        """))
         
         # 1. Daily
         conn.execute(text(f"""
         INSERT INTO sql_om_closed_analysis (
             project, discom, zone, circle, division, subdivision, substation, feeder, dtr, meter_category,
-            complaint_type, complaint_category, period_type, period_value, closed_tickets
+            complaint_type, complaint_category, complaint_by, period_type, period_value, closed_tickets, closed_date
         )
         SELECT 
             project, discom, zone, circle, division, 
             sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
-            complaint_type, complaint_category, 'daily', TO_CHAR(closed_date, 'DD-MM-YY'), COUNT(*)
+            complaint_type, complaint_category, complaint_by,
+            'daily', TO_CHAR(closed_date, 'YYYY-MM-DD'), COUNT(*), closed_date::date
         FROM {OM_SOURCE_TABLE}
         WHERE closed_date IS NOT NULL
-        GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14;
+        GROUP BY
+            project, discom, zone, circle, division,
+            sub_division, feeder, dtr, meter_category,
+            complaint_type, complaint_category, complaint_by,
+            TO_CHAR(closed_date, 'YYYY-MM-DD'),
+            closed_date::date;
+        """))
+
+        # 2. Weekly
+        conn.execute(text(f"""
+        INSERT INTO sql_om_closed_analysis (
+            project, discom, zone, circle, division, subdivision, substation, feeder, dtr, meter_category,
+            complaint_type, complaint_category, complaint_by, period_type, period_value, closed_tickets, closed_date
+        )
+        SELECT
+            project, discom, zone, circle, division,
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
+            complaint_type, complaint_category, complaint_by,
+            'weekly',
+            TO_CHAR(date_trunc('week', closed_date), 'YYYY-MM-DD'),
+            COUNT(*),
+            date_trunc('week', closed_date)::date
+        FROM {OM_SOURCE_TABLE}
+        WHERE closed_date IS NOT NULL
+        GROUP BY
+            project, discom, zone, circle, division,
+            sub_division, feeder, dtr, meter_category,
+            complaint_type, complaint_category, complaint_by,
+            TO_CHAR(date_trunc('week', closed_date), 'YYYY-MM-DD'),
+            date_trunc('week', closed_date)::date;
+        """))
+
+        # 3. Monthly
+        conn.execute(text(f"""
+        INSERT INTO sql_om_closed_analysis (
+            project, discom, zone, circle, division, subdivision, substation, feeder, dtr, meter_category,
+            complaint_type, complaint_category, complaint_by, period_type, period_value, closed_tickets, closed_date
+        )
+        SELECT
+            project, discom, zone, circle, division,
+            sub_division as subdivision, NULL as substation, feeder, dtr, meter_category,
+            complaint_type, complaint_category, complaint_by,
+            'monthly',
+            TO_CHAR(date_trunc('month', closed_date), 'YYYY-MM'),
+            COUNT(*),
+            date_trunc('month', closed_date)::date
+        FROM {OM_SOURCE_TABLE}
+        WHERE closed_date IS NOT NULL
+        GROUP BY
+            project, discom, zone, circle, division,
+            sub_division, feeder, dtr, meter_category,
+            complaint_type, complaint_category, complaint_by,
+            TO_CHAR(date_trunc('month', closed_date), 'YYYY-MM'),
+            date_trunc('month', closed_date)::date;
         """))

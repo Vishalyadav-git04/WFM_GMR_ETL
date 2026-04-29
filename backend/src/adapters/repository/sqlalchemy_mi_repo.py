@@ -2202,16 +2202,21 @@ class SQLAlchemyMIRepository(IMIRepository):
         base_filters.pop("level", None)
         base_filters.pop("project", None)
         
-        # Handle category alias and map to proper meter_category values
-        category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT"}
+        # Handle category alias and map to proper meter_category values.
+        # For dt, source data may contain either DT or DTR labels.
+        category_map = {"consumer": "CONSUMER", "feeder": "FEEDER"}
         category_val = (base_filters.pop("category", None) or base_filters.pop("meter_category", None) or "total").lower()
         
         # Only set meter_category filter if category_val is specific (not "all" or "total")
         if category_val in category_map:
             base_filters["meter_category"] = category_map[category_val]
+        elif category_val == "dt":
+            base_filters["meter_category"] = None
         # else: category is "all" or "total" → don't add meter_category filter
         
         q = self._apply_filters(q, DefectiveMeters, base_filters)
+        if category_val == "dt":
+            q = q.filter(func.lower(func.trim(DefectiveMeters.meter_category)).in_(["dt", "dtr"]))
         
         # Filter by duration → period_type
         q = q.filter(DefectiveMeters.period_type == duration)

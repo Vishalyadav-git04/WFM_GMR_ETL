@@ -280,9 +280,11 @@ class OMClosedAnalysis(OMDimensionMixin, Base):
     __tablename__ = "sql_om_closed_analysis"
     complaint_type = Column(String(200))
     complaint_category = Column(String(200))
+    complaint_by = Column(String(200))
     period_type = Column(String(10))
     period_value = Column(String(50))
     closed_tickets = Column(BigInteger)
+    closed_date = Column(Date)
 
 
 # ── ETL Run Log ─────────────────────────────────────────────────────────

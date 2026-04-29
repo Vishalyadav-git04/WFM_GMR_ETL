@@ -59,6 +59,142 @@ class SQLAlchemyOMRepository(IOMRepository):
         q = q.filter(OMClosedAnalysis.period_type == period.lower())
         return q.offset(offset).limit(limit).all()
 
+    def get_closed_analysis_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        from sqlalchemy import case, func
+
+        q = self.session.query(OMClosedAnalysis)
+
+        # Filters (mirror other OM dashboards)
+        project = filters.get("project")
+        if project and project.lower() != "all":
+            q = q.filter(OMClosedAnalysis.project.ilike(project))
+
+        category = filters.get("category")
+        if category and category.lower() != "total":
+            cat_filter = category.lower()
+            if cat_filter == "dt":
+                # Source data can contain either DT or DTR labels.
+                q = q.filter(func.lower(func.trim(OMClosedAnalysis.meter_category)).in_(["dt", "dtr"]))
+            else:
+                q = q.filter(OMClosedAnalysis.meter_category.ilike(cat_filter))
+
+        for field in ["discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"]:
+            val = filters.get(field)
+            if val:
+                q = q.filter(getattr(OMClosedAnalysis, field).ilike(val))
+
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
+        if start_date:
+            q = q.filter(OMClosedAnalysis.closed_date >= start_date)
+        if end_date:
+            q = q.filter(OMClosedAnalysis.closed_date <= end_date)
+
+        # Period type (duration drives the dashboard grain)
+        duration = (filters.get("duration") or "daily").lower()
+        q = q.filter(OMClosedAnalysis.period_type == duration)
+
+        # Buckets based on complaint_by (same pattern as open-ageing)
+        c_by = func.coalesce(OMClosedAnalysis.complaint_by, "")
+        auto_ticketing_cond = c_by.ilike("%auto%ticketing%")
+        helpdesk_cond = c_by.ilike("%1912%helpdesk%")
+        others_cond = ~auto_ticketing_cond & ~helpdesk_cond
+
+        tickets = func.coalesce(OMClosedAnalysis.closed_tickets, 0)
+
+        base_aggs = [
+            func.sum(case((auto_ticketing_cond, tickets), else_=0)).label("auto_total"),
+            func.sum(case((helpdesk_cond, tickets), else_=0)).label("helpdesk_total"),
+            func.sum(case((others_cond, tickets), else_=0)).label("others_total"),
+        ]
+
+        # --- Summary ---
+        summary_row = q.with_entities(*base_aggs).first()
+        summary = {
+            "auto_ticketing": int((summary_row[0] if summary_row else 0) or 0),
+            "1912_helpdesk": int((summary_row[1] if summary_row else 0) or 0),
+            "others": int((summary_row[2] if summary_row else 0) or 0),
+        }
+
+        # --- Trend ---
+        trend_rows = (
+            q.with_entities(OMClosedAnalysis.period_value.label("period_label"), *base_aggs)
+            .group_by(OMClosedAnalysis.period_value)
+            .all()
+        )
+        trend: List[Dict[str, Any]] = []
+        for row in trend_rows:
+            if not row[0]:
+                continue
+            trend.append(
+                {
+                    "period_value": row[0],
+                    "auto_ticketing": int(row[1] or 0),
+                    "1912_helpdesk": int(row[2] or 0),
+                    "others": int(row[3] or 0),
+                }
+            )
+        trend = sorted(trend, key=lambda x: x["period_value"])
+
+        # --- Comparison ---
+        level = (filters.get("level") or "discom").lower()
+        if level == "divison":
+            level = "division"
+        elif level == "subdivison":
+            level = "subdivision"
+        valid_levels = {"discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"}
+        if level not in valid_levels:
+            level = "discom"
+
+        proj_filter = (filters.get("project") or "all").lower()
+        if proj_filter != "all":
+            label_expr = getattr(OMClosedAnalysis, level)
+        elif proj_filter == "all" and level == "discom":
+            label_expr = OMClosedAnalysis.project
+        else:
+            label_expr = OMClosedAnalysis.project + " | " + getattr(OMClosedAnalysis, level)
+
+        comp_rows = (
+            q.with_entities(label_expr.label("label"), *base_aggs)
+            .filter(getattr(OMClosedAnalysis, level).isnot(None))
+            .group_by(label_expr)
+            .all()
+        )
+        comparison: List[Dict[str, Any]] = []
+        for row in comp_rows:
+            lbl = row[0]
+            comparison.append(
+                {
+                    "label": str(lbl) if lbl else "Unknown",
+                    "auto_ticketing": int(row[1] or 0),
+                    "1912_helpdesk": int(row[2] or 0),
+                    "others": int(row[3] or 0),
+                }
+            )
+
+        # --- Category Breakdown ---
+        cat_rows = (
+            q.with_entities(OMClosedAnalysis.meter_category, *base_aggs)
+            .filter(OMClosedAnalysis.meter_category.isnot(None))
+            .group_by(OMClosedAnalysis.meter_category)
+            .all()
+        )
+        category_breakdown: Dict[str, Dict[str, int]] = {}
+        for row in cat_rows:
+            cat_name = str(row[0]) if row[0] else "Unknown"
+            category_breakdown[cat_name] = {
+                "auto_ticketing": int(row[1] or 0),
+                "1912_helpdesk": int(row[2] or 0),
+                "others": int(row[3] or 0),
+            }
+
+        return {
+            "summary": summary,
+            "trend": trend,
+            "comparison": comparison,
+            "category_breakdown": category_breakdown,
+        }
+
     def get_productivity_team_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         from sqlalchemy import cast, Float, case
         q = self.session.query(OMTeamProductivityDashboard)
@@ -72,8 +208,9 @@ class SQLAlchemyOMRepository(IOMRepository):
         if category and category.lower() != "total":
             cat_filter = category.lower()
             if cat_filter == "dt":
-                cat_filter = "dtr"
-            q = q.filter(OMTeamProductivityDashboard.meter_category.ilike(cat_filter))
+                q = q.filter(func.lower(func.trim(OMTeamProductivityDashboard.meter_category)).in_(["dt", "dtr"]))
+            else:
+                q = q.filter(OMTeamProductivityDashboard.meter_category.ilike(cat_filter))
 
         for field in ["discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"]:
             val = filters.get(field)
@@ -289,8 +426,9 @@ class SQLAlchemyOMRepository(IOMRepository):
         if category and category.lower() != "total":
             cat_filter = category.lower()
             if cat_filter == "dt":
-                cat_filter = "dtr"
-            q = q.filter(OMTeamProductivityDashboard.meter_category.ilike(cat_filter))
+                q = q.filter(func.lower(func.trim(OMTeamProductivityDashboard.meter_category)).in_(["dt", "dtr"]))
+            else:
+                q = q.filter(OMTeamProductivityDashboard.meter_category.ilike(cat_filter))
 
         for field in ["discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"]:
             val = filters.get(field)
@@ -449,8 +587,9 @@ class SQLAlchemyOMRepository(IOMRepository):
         if category and category.lower() != "total":
             cat_filter = category.lower()
             if cat_filter == "dt":
-                cat_filter = "dtr"
-            q = q.filter(OMOpenAgeing.meter_category.ilike(cat_filter))
+                q = q.filter(func.lower(func.trim(OMOpenAgeing.meter_category)).in_(["dt", "dtr"]))
+            else:
+                q = q.filter(OMOpenAgeing.meter_category.ilike(cat_filter))
 
         for field in ["discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"]:
             val = filters.get(field)
@@ -632,8 +771,9 @@ class SQLAlchemyOMRepository(IOMRepository):
         if category and category.lower() != "total":
             cat_filter = category.lower()
             if cat_filter == "dt":
-                cat_filter = "dtr"
-            q = q.filter(OMAvgClosureTime.meter_category.ilike(cat_filter))
+                q = q.filter(func.lower(func.trim(OMAvgClosureTime.meter_category)).in_(["dt", "dtr"]))
+            else:
+                q = q.filter(OMAvgClosureTime.meter_category.ilike(cat_filter))
 
         for field in ["discom", "zone", "circle", "division", "subdivision", "feeder", "dtr"]:
             val = filters.get(field)
