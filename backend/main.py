@@ -23,8 +23,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     # Explicitly allow known frontend origins (safer for production)
-    allow_origins=[
-        "https://gmr-en-i-i-analytics.gmrgroup.in",
+    allow_origins=["https://gmr-en-i-i-analytics.gmrgroup.in",
+        "http://gmr-analytics-dashboard.s3-website.ap-south-1.amazonaws.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
