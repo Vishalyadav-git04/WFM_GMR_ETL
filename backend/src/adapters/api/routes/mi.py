@@ -28,7 +28,7 @@ def get_mi_usecase():
 
 
 
-@router.get("/progress/dashboard", response_model=MIProgressDashboardOut, summary="Get MI Progress Dashboard (Trend + Comparison)")
+@router.get("/progress/dashboard", response_model=MIProgressDashboardOut, response_model_exclude_none=True, summary="Get MI Progress Dashboard (Trend + Comparison)")
 def get_mi_progress_dashboard(
     duration: Optional[str] = Query(None, description="Duration: daily, weekly, or monthly"),
     category: Optional[str] = Query(None, description="Category: total, consumer, feeder, dt"),
@@ -169,6 +169,7 @@ def get_stock_ageing_dashboard(
     duration: Optional[str] = Query("monthly", description="monthly, weekly, daily"),
     level: Optional[str] = Query("discom", description="Hierarchy level for grouping"),
     project: Optional[str] = Query("all", description="all, kashi, agra, triveni"),
+    category: Optional[str] = Query("total", description="Optional meter category filter"),
     start_date: Optional[str] = Query(None, description="Start date"),
     end_date: Optional[str] = Query(None, description="End date"),
     discom: Optional[str] = None, zone: Optional[str] = None,
@@ -263,17 +264,25 @@ def get_meter_journey_dashboard(
 @router.get(
     "/meter-stage",
     response_model=MeterStageFunnelSummaryOut,
-    summary="Get Meter Funnel Summary (Inventory → Installed → SAT → Revenue Collected)",
+    summary="Get Meter Funnel Summary - Pending PMPM Collection (Inventory -> Installed -> SAT -> Invoice Done)",
     description="""
-Returns pre-aggregated counts at four funnel stages:
-- **inventory**: total meters available
-- **installed**: meters with MI complete (`mi_date IS NOT NULL`) and a SAT number (`sat_no IS NOT NULL`)
-- **sat_done**: meters with SAT date set (`sat_date IS NOT NULL`)
-- **revenue_collected**: meters with PMPM collection date (`pmpm_collection_date IS NOT NULL`)
+Returns pre-aggregated counts at four funnel stages **for meters whose
+PMPM collection has not yet happened** (i.e. `pmpm_collection_date IS NULL`):
 
-Results are grouped by geographic + type dimensions. 
-- `category_breakdown` nests by meter_category (CONSUMER/FEEDER/DT) and meter_type.
-- `comparison` groups by the selected `level` (discom/zone/circle/...) with optional `project=all` composite labels.
+- **inventory**: meters with no PMPM collection
+- **installed**: + `mi_date IS NOT NULL` AND `sat_no IS NOT NULL` (non-empty)
+- **sat_done**: + `sat_date IS NOT NULL`
+- **invoice_done**: + `pmpm_invoice_date IS NOT NULL`
+
+Response shape is always `{ "summary": {...}, "comparison": [...] }` (KPI-9 style).
+Each of the 4 fields nests according to the requested `category`:
+
+- `category=consumer` -> `1PH-Consumer_meter / 3PH-Consumer_meter / LTCT-Consumer_meter / HTCT-Consumer_meter / total`
+- `category=total` (default / unspecified) -> `CONSUMER / FEEDER / DT / total`
+- `category=feeder` or `category=dt` -> flat `int`
+
+`comparison` rows have the same nesting rules and group by the selected `level`
+(discom/zone/circle/...) with optional `project=all` composite labels.
 """,
 )
 def get_meter_stage(
@@ -354,6 +363,10 @@ def get_revenue_realized_summary(
     dtr: Optional[str] = None,
     new_meter_type: Optional[str] = None,
     meter_category: Optional[str] = None,
+    category: Optional[str] = Query(
+        None,
+        description="consumer, feeder, dt, or total (default): controls meter_category scope and nesting of the four totals",
+    ),
     project: Optional[str] = None,
     duration: Optional[str] = Query(None, description="Period granularity (daily, weekly, monthly)"),
     level: Optional[str] = Query(None, description="Grouping level for comparison (discom, zone, circle, division, subdivision, substation, feeder, dtr)"),
@@ -379,7 +392,14 @@ def get_revenue_ageing_summary(
     dtr: Optional[str] = None,
     new_meter_type: Optional[str] = None,
     meter_category: Optional[str] = None,
-    category: Optional[str] = Query(None, description="Optional: consumer, feeder, dt (alias for meter_category)"),
+    category: Optional[str] = Query(
+        None,
+        description=(
+            "consumer, feeder, dt, total, or all (default total): filters meter_category "
+            "and controls nesting in summary/comparison (KPI 6–style: consumer by "
+            "meter-type buckets, total by CONSUMER/FEEDER/DT, feeder/dt flat ints)."
+        ),
+    ),
     project: Optional[str] = None,
     duration: Optional[str] = Query(
         "monthly",

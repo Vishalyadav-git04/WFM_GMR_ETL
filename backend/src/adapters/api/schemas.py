@@ -2,10 +2,9 @@
 Pydantic response schemas for API endpoints.
 """
 
-import math
-from typing import Annotated, Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any
 
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import BaseModel, Field
 from datetime import datetime, date
 
 
@@ -41,22 +40,25 @@ class MIDimensionBase(BaseModel):
 
 class MIProgressDashboardTrendPoint(BaseModel):
     period_value: str = Field(..., description="The specific period value (date/week/month bucket)")
-    CONSUMER: int = Field(0, description="MI progress count for CONSUMER category")
-    FEEDER: int = Field(0, description="MI progress count for FEEDER category")
-    DT: int = Field(0, description="MI progress count for DT category")
+    CONSUMER: Optional[int] = Field(None, description="MI progress count for CONSUMER category")
+    FEEDER: Optional[int] = Field(None, description="MI progress count for FEEDER category")
+    DT: Optional[int] = Field(None, description="MI progress count for DT category")
+    total: Optional[int] = Field(None, description="Total MI progress count for the period")
+
+    model_config = {"extra": "allow"}
 
 
 class MIProgressDashboardComparisonItem(BaseModel):
     label: str = Field(..., description="Bar label (project or project|level label)")
-    CONSUMER: int = Field(0, description="MI progress count for CONSUMER category")
-    FEEDER: int = Field(0, description="MI progress count for FEEDER category")
-    DT: int = Field(0, description="MI progress count for DT category")
-    count: int = Field(..., description="Total MI progress count (sum of all categories)")
+    CONSUMER: Optional[int] = Field(None, description="MI progress count for CONSUMER category")
+    FEEDER: Optional[int] = Field(None, description="MI progress count for FEEDER category")
+    DT: Optional[int] = Field(None, description="MI progress count for DT category")
+    total: Optional[int] = Field(None, description="Total MI progress count (sum of all categories)")
 
+    model_config = {"extra": "allow"}
 
 class MIProgressDashboardOut(BaseModel):
     total_progress: int = Field(..., description="Cumulative MI progress total for the selected filters")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict, description="Nested: meter_category -> meter_type -> {count}")
     trend: List[MIProgressDashboardTrendPoint] = Field(default_factory=list, description="Trend series for MI Progress chart")
     comparison: List[MIProgressDashboardComparisonItem] = Field(default_factory=list, description="Comparison-by-cluster bar chart data")
 
@@ -129,273 +131,146 @@ class InventoryUtilizationSummaryOut(BaseModel):
     total_installed: int = Field(..., description="Total installed count")
     utilization_rate_pct: float = Field(..., description="Overall utilization percentage")
     remaining_stock: int = Field(..., description="Overall remaining stock")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    comparison: List[Dict[str, Any]] = Field(default_factory=list, description="Comparison-by-cluster bar chart data")
+    period_breakdown: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Trend rows with category-aware nested objects; when category is consumer or total, "
+            "each nested bucket includes inventory, installed, and utilization_rate_pct"
+        ),
+    )
+    comparison: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Per-cluster bars; when category is consumer or total, each nested bucket includes "
+            "inventory, installed, and utilization_rate_pct"
+        ),
+    )
 
 
 class PaceVsStockSummaryOut(InventoryUtilizationSummaryOut):
-    """Same structure as Inventory Utilization but frontend uses remaining_stock instead of utilization_rate_pct in comparison."""
-    pass
+    """Same outer shape as Inventory Utilization; row-level pace uses remaining_stock vs utilization_rate_pct."""
 
-
-class StockAgeingPeriodTrendPoint(BaseModel):
-    period_value: str
-    age_0_30: int = 0
-    age_31_60: int = 0
-    age_61_90: int = 0
-    age_90_plus: int = 0
-    total_stock: int = 0
-
-
-class StockAgeingComparisonItem(BaseModel):
-    label: str
-    age_0_30: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_31_60: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_61_90: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_90_plus: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    total_stock: int = 0
+    period_breakdown: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Trend rows; when category is consumer or total, each nested bucket includes "
+            "inventory, installed, and remaining_stock (not utilization_rate_pct)"
+        ),
+    )
+    comparison: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Per-cluster bars; when category is consumer or total, nested buckets include remaining_stock"
+        ),
+    )
 
 
 class StockAgeingDashboardOut(BaseModel):
     total_stock: int = Field(..., description="Overall total stock")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: List[StockAgeingPeriodTrendPoint] = Field(default_factory=list)
-    comparison: List[StockAgeingComparisonItem] = Field(default_factory=list)
+    summary: Dict[str, Any] = Field(default_factory=dict)
+    comparison: List[Dict[str, Any]] = Field(default_factory=list)
 
-
-
-class MIvsSATComparisonItem(BaseModel):
-    label: str = Field(..., description="Bar label (project or project|level label)")
-    CONSUMER: int = Field(0, description="Total MI count for CONSUMER category")
-    FEEDER: int = Field(0, description="Total MI count for FEEDER category")
-    DT: int = Field(0, description="Total MI count for DT category")
-    total_mi: int = Field(..., description="Total MI across all categories")
-    total_sat: int = Field(..., description="Total SAT across all categories")
-    sat_progress_pct: float = Field(..., description="SAT progress percentage")
 
 
 class MIvsSATSummaryOut(BaseModel):
     total_mi: int = Field(..., description="Cumulative Total MI")
     total_sat: int = Field(..., description="Cumulative Total SAT")
-    sat_1: int = Field(0, description="Total SAT Stage 1")
-    sat_2: int = Field(0, description="Total SAT Stage 2")
-    sat_3: int = Field(0, description="Total SAT Stage 3")
-    sat_4: int = Field(0, description="Total SAT Stage 4")
-    sat_5: int = Field(0, description="Total SAT Stage 5")
-    sat_6: int = Field(0, description="Total SAT Stage 6")
-    sat_7: int = Field(0, description="Total SAT Stage 7")
-    sat_8: int = Field(0, description="Total SAT Stage 8")
-    sat_9: int = Field(0, description="Total SAT Stage 9")
     sat_progress_pct: float = Field(..., description="Overall SAT progress percentage")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    comparison: List[MIvsSATComparisonItem] = Field(default_factory=list, description="Comparison-by-cluster bar chart data")
-
-
-class NonSATAgeingPeriodTrendPoint(BaseModel):
-    period_value: str
-    age_0_30: int = 0
-    age_31_60: int = 0
-    age_61_90: int = 0
-    age_91_120: int = 0
-    age_120_plus: int = 0
-    total_non_sat: int = 0
-
-
-
-
-
-class NonSATAgeingComparisonItem(BaseModel):
-    label: str
-    CONSUMER: int = 0
-    FEEDER: int = 0
-    DT: int = 0
-    count: int = 0
-    age_0_30: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_31_60: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_61_90: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_91_120: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_120_plus: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    total_non_sat: int = 0
-
-
-class NonSATAgeingSummary(BaseModel):
-    age_0_30: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_31_60: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_61_90: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_91_120: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    age_120_plus: AgeingBucketBreakdown = Field(default_factory=AgeingBucketBreakdown)
-    total_non_sat: int = 0
+    summary: Dict[str, Any] = Field(default_factory=dict, description="SAT stage breakdowns with category-aware sub-keys")
+    comparison: List[Dict[str, Any]] = Field(default_factory=list, description="Comparison-by-cluster with SAT stage breakdowns")
 
 
 class NonSATAgeingDashboardOut(BaseModel):
     total_non_sat: int = Field(..., description="Overall total non sat count")
-    category_breakdown: Dict[str, int] = Field(default_factory=dict)
-    summary: NonSATAgeingSummary = Field(default_factory=NonSATAgeingSummary)
-    period_breakdown: List[NonSATAgeingPeriodTrendPoint] = Field(default_factory=list)
-    comparison: List[NonSATAgeingComparisonItem] = Field(default_factory=list)
-
-
-def _meter_journey_whole_days(v: Any) -> Any:
-    """
-    Whole days for API: **always round up** any fractional day using ``math.ceil`` (e.g. ``23.01`` → ``24``, ``23.0`` → ``23``).
-    """
-    if v is None:
-        return None
-    try:
-        return int(math.ceil(float(v)))
-    except (TypeError, ValueError):
-        return None
-
-
-MeterJourneyWholeDays = Annotated[
-    Optional[int],
-    BeforeValidator(_meter_journey_whole_days),
-]
-
-
-class MeterJourneyDashboardTrendPoint(BaseModel):
-    period_value: str = Field(
-        ...,
-        description="Time bucket label (DD-MM-YY from ETL, bucketed by duration)",
-    )
-    inventory_to_store: MeterJourneyWholeDays = None
-    store_to_agency: MeterJourneyWholeDays = None
-    agency_to_meter_installation: MeterJourneyWholeDays = None
-    meter_installation_to_sat: MeterJourneyWholeDays = None
-    sat_to_invoice: MeterJourneyWholeDays = None
-    invoice_to_revenue: MeterJourneyWholeDays = None
-    total_journey: MeterJourneyWholeDays = None
-    meter_count: int = Field(0, description="Meters with revenue in this period bucket")
-
-
-class MeterJourneyDashboardComparisonItem(BaseModel):
-    label: str = Field(..., description="Cluster label (project or project|level)")
-    inventory_to_store: MeterJourneyWholeDays = None
-    store_to_agency: MeterJourneyWholeDays = None
-    agency_to_meter_installation: MeterJourneyWholeDays = None
-    meter_installation_to_sat: MeterJourneyWholeDays = None
-    sat_to_invoice: MeterJourneyWholeDays = None
-    invoice_to_revenue: MeterJourneyWholeDays = None
-    total_journey: MeterJourneyWholeDays = None
-    meter_count: int = Field(0, description="Meters in this cluster for the cohort")
-
-
-class MeterJourneyDashboardSummary(BaseModel):
-    inventory_to_store: MeterJourneyWholeDays = None
-    store_to_agency: MeterJourneyWholeDays = None
-    agency_to_meter_installation: MeterJourneyWholeDays = None
-    meter_installation_to_sat: MeterJourneyWholeDays = None
-    sat_to_invoice: MeterJourneyWholeDays = None
-    invoice_to_revenue: MeterJourneyWholeDays = None
-    total_journey: MeterJourneyWholeDays = None
-    meter_count: int = Field(0, description="Total meters in filtered cohort")
+    summary: Dict[str, Any] = Field(default_factory=dict)
+    comparison: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class MeterJourneyDashboardOut(BaseModel):
-    summary: MeterJourneyDashboardSummary = Field(..., description="Cohort-wide weighted averages from pre-aggregated rows")
-    trend: List[MeterJourneyDashboardTrendPoint] = Field(
+    summary: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Cohort-wide weighted averages; nested by meter-type when category=consumer",
+    )
+    comparison: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="One row per period_value in range (weighted roll-up across geography for each bucket)",
+        description="One row per cluster; nested by meter-type when category=consumer",
     )
-    comparison: List[MeterJourneyDashboardComparisonItem] = Field(
-        default_factory=list, description="One row per cluster after level/project rules"
-    )
-
-
-class FunnelMetricItem(BaseModel):
-    inventory: int = 0
-    installed: int = 0
-    sat_done: int = 0
-    revenue_collected: int = 0
-
-    class Config:
-        from_attributes = True
-
-
-class MeterStageFunnelComparisonItem(BaseModel):
-    label: str
-    inventory: int = 0
-    installed: int = 0
-    sat_done: int = 0
-    revenue_collected: int = 0
-
-    class Config:
-        from_attributes = True
 
 
 class MeterStageFunnelSummaryOut(BaseModel):
-    inventory: int
-    installed: int
-    sat_done: int
-    revenue_collected: int
-    category_breakdown: Dict[str, Any]  # { "CONSUMER": { "total": FunnelMetricItem, "1PH": FunnelMetricItem, ... }, "FEEDER": {...}, "DT": {...} }
-    comparison: List[MeterStageFunnelComparisonItem]
+    """KPI 10 — Meter Funnel Summary ("Pending PMPM Collection")."""
 
-    class Config:
-        from_attributes = True
+    summary: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Pending-PMPM-collection counts: inventory, installed, sat_done, "
+            "invoice_done. Each is a flat int when category=feeder|dt; nested by "
+            "CONSUMER/FEEDER/DT/total when category=total; nested by "
+            "1PH-Consumer_meter / 3PH-Consumer_meter / LTCT-Consumer_meter / "
+            "HTCT-Consumer_meter / total when category=consumer."
+        ),
+    )
+    comparison: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "One row per level group; each row has `label` plus the same 4 "
+            "fields with the same nesting rules as `summary`."
+        ),
+    )
 
 
 class MIvsSATvsInvoiceSummaryOut(BaseModel):
-    total_mi: int = Field(..., description="Total MI count")
-    total_sat: int = Field(..., description="Total SAT count")
-    total_lumpsum_invoice: int = Field(..., description="Total lumpsum invoice count")
-    total_pmpm_invoice: int = Field(..., description="Total pmpm invoice count")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    summary: Dict[str, Any] = Field(default_factory=dict)
     comparison: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class RevenueRealizedSummaryOut(BaseModel):
-    total_lumpsum_invoice: int = Field(..., description="Total lumpsum invoice count")
-    total_pmpm_invoice: int = Field(..., description="Total pmpm invoice count")
-    total_lumpsum_collection: int = Field(..., description="Total lumpsum collection count")
-    total_pmpm_collection: int = Field(..., description="Total pmpm collection count")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    """KPI 12 — Revenue Realized (KPI-10-style ``summary`` + ``comparison``)."""
+
+    summary: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Revenue totals: total_lumpsum_invoice, total_pmpm_invoice, "
+            "total_lumpsum_collection, total_pmpm_collection. Each is a flat int when "
+            "category=feeder|dt; nested by CONSUMER/FEEDER/DT/total when category=total; "
+            "nested by 1PH-Consumer_meter / 3PH-Consumer_meter / LTCT-Consumer_meter / "
+            "HTCT-Consumer_meter / total when category=consumer."
+        ),
+    )
     comparison: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="Per-group revenue metrics (label + counts)",
+        description=(
+            "One row per level group; each row has `label` plus the same four fields "
+            "with the same nesting rules as `summary`."
+        ),
     )
 
 
 class RevenueAgeingSummaryOut(BaseModel):
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    period_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    """KPI 13 — same top-level shape as KPI 6 Stock Ageing: ``summary`` + ``comparison``."""
+
+    summary: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Ageing buckets + total_pending. When category=consumer: each age_* is a dict "
+            "1PH-Consumer_meter / 3PH-Consumer_meter / LTCT-Consumer_meter / "
+            "HTCT-Consumer_meter / total. When category=total (or default): each age_* "
+            "is CONSUMER / FEEDER / DT / total. When category=feeder|dt: each age_* is a flat int."
+        ),
+    )
     comparison: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="Per-cluster ageing buckets (label + age_0_30…age_90_plus + total_pending)",
+        description=(
+            "Per-cluster rows with label + same nesting rules as summary for age_* "
+            "+ total_pending."
+        ),
     )
 
 
-class DefectiveMetersTrendPoint(BaseModel):
-    period_value: str
-    CONSUMER: int = 0
-    FEEDER: int = 0
-    DT: int = 0
-    burnt: int = 0
-    faulty: int = 0
-    others: int = 0
-
-class DefectiveMetersComparisonItem(BaseModel):
-    label: str
-    CONSUMER: int = 0
-    FEEDER: int = 0
-    DT: int = 0
-    burnt: int = 0
-    faulty: int = 0
-    others: int = 0
-    total_defective: int = 0
-
 class DefectiveMetersSummaryOut(BaseModel):
-    total_defective: int = Field(..., description="Total defective meter count")
-    total_burnt: int = Field(..., description="Total burnt meter count")
-    total_faulty: int = Field(..., description="Total faulty meter count")
-    total_others: int = Field(..., description="Total others meter count")
-    category_breakdown: Dict[str, Any] = Field(default_factory=dict)
-    trend: List[DefectiveMetersTrendPoint] = Field(default_factory=list)
-    comparison: List[DefectiveMetersComparisonItem] = Field(default_factory=list)
+    summary: Dict[str, Any] = Field(default_factory=dict)
+    period_breakdown: List[Dict[str, Any]] = Field(default_factory=list)
+    comparison: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 
@@ -477,6 +352,7 @@ class OMOpenAgeingOut(OMDimensionBase):
     agency: Optional[str] = None
 
 class OMOpenAgeingBucketBreakdown(BaseModel):
+    total: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
@@ -491,6 +367,7 @@ class OMOpenAgeingBuckets(BaseModel):
     age_6_months_and_above: OMOpenAgeingBucketBreakdown = Field(default_factory=lambda: OMOpenAgeingBucketBreakdown.model_validate({}))
 
 class OMOpenAgeingSummary(BaseModel):
+    total: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
@@ -498,12 +375,14 @@ class OMOpenAgeingSummary(BaseModel):
 
 class OMOpenAgeingTrendPoint(BaseModel):
     period_value: str
+    total: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0
 
 class OMOpenAgeingComparisonItem(BaseModel):
     label: str
+    total: int = 0
     auto_ticketing: int = 0
     helpdesk_1912: int = Field(0, alias="1912_helpdesk")
     others: int = 0

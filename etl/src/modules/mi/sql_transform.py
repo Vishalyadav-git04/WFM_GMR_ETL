@@ -32,8 +32,8 @@ def execute_kpi_1_mi_progress(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -56,8 +56,8 @@ def execute_kpi_1_mi_progress(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -80,8 +80,8 @@ def execute_kpi_1_mi_progress(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -140,8 +140,8 @@ def execute_kpi_2_5_mi_technician_productivity_dashboard(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as meter_category,
@@ -176,8 +176,8 @@ def execute_kpi_4_5_inventory_utilization(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -203,8 +203,8 @@ def execute_kpi_4_5_inventory_utilization(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -230,8 +230,8 @@ def execute_kpi_4_5_inventory_utilization(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -259,8 +259,8 @@ def execute_kpi_6_stock_ageing(engine):
                 COALESCE(
                     UPPER(TRIM(connection_type)),
                     CASE 
-                        WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                        WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                        WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                        WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                         ELSE 'CONSUMER'
                     END
                 ) as connection_type,
@@ -302,8 +302,8 @@ def execute_kpi_7_mi_vs_sat(engine):
                 COALESCE(
                     UPPER(TRIM(connection_type)),
                     CASE 
-                        WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                        WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                        WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                        WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                         ELSE 'CONSUMER'
                     END
                 ) as connection_type, meterserialnumber,
@@ -366,8 +366,8 @@ def execute_kpi_8_non_sat_ageing(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ),
@@ -402,8 +402,8 @@ def execute_kpi_9_meter_journey(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             )
@@ -471,7 +471,8 @@ def execute_kpi_10_meter_stage(engine):
         INSERT INTO sql_meter_current_stage (
             project, discom, zone, circle, division, subdivision,
             substation, feeder, dtr, new_meter_type, meter_category,
-            inventory, installed, sat_done, revenue_collected
+            inventory, installed, sat_done, revenue_collected,
+            pending_inventory, pending_installed, pending_sat_done, pending_invoice_done
         )
         SELECT 
             UPPER(TRIM(project)) as project,
@@ -487,15 +488,30 @@ def execute_kpi_10_meter_stage(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as meter_category,
             COUNT(*) as inventory,
             COUNT(*) FILTER (WHERE mi_date IS NOT NULL AND sat_no IS NOT NULL AND TRIM(sat_no) != '') as installed,
             COUNT(*) FILTER (WHERE sat_date IS NOT NULL) as sat_done,
-            COUNT(*) FILTER (WHERE pmpm_collection_date IS NOT NULL) as revenue_collected
+            COUNT(*) FILTER (WHERE pmpm_collection_date IS NOT NULL) as revenue_collected,
+            -- "Pending PMPM collection" funnel: meters whose pmpm_collection_date IS NULL
+            COUNT(*) FILTER (WHERE pmpm_collection_date IS NULL) as pending_inventory,
+            COUNT(*) FILTER (
+                WHERE pmpm_collection_date IS NULL
+                  AND mi_date IS NOT NULL
+                  AND sat_no IS NOT NULL AND TRIM(sat_no) != ''
+            ) as pending_installed,
+            COUNT(*) FILTER (
+                WHERE pmpm_collection_date IS NULL
+                  AND sat_date IS NOT NULL
+            ) as pending_sat_done,
+            COUNT(*) FILTER (
+                WHERE pmpm_collection_date IS NULL
+                  AND pmpm_invoice_date IS NOT NULL
+            ) as pending_invoice_done
         FROM {MI_SOURCE_TABLE}
         GROUP BY 
             UPPER(TRIM(project)), discom, zone, circle, division, subdivision,
@@ -503,8 +519,8 @@ def execute_kpi_10_meter_stage(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             );
@@ -769,8 +785,8 @@ def execute_kpi_11_mi_sat_invoice(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE 
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -806,8 +822,8 @@ def execute_kpi_12_revenue_realized(engine):
             COALESCE(
                 UPPER(TRIM(connection_type)),
                 CASE
-                    WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                    WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                    WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                    WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                     ELSE 'CONSUMER'
                 END
             ) as connection_type,
@@ -849,8 +865,8 @@ def execute_kpi_13_revenue_ageing(engine):
                 COALESCE(
                     UPPER(TRIM(connection_type)),
                     CASE 
-                        WHEN metertype = '3PLTCTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'DT'
-                        WHEN metertype = 'HTCTPTSM' AND (consumer_name IS NULL OR TRIM(consumer_name) = '') THEN 'FEEDER'
+                        WHEN metertype = '3PLTCTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'DT'
+                        WHEN metertype = 'HTCTPTSM' AND (consumerno IS NULL OR TRIM(consumerno) = '') THEN 'FEEDER'
                         ELSE 'CONSUMER'
                     END
                 ) as connection_type,
@@ -933,8 +949,8 @@ def execute_kpi_14_defective_meters(engine):
                         END
                     ELSE 
                         CASE 
-                            WHEN inv.metertype = '3PLTCTSM' AND (inv.consumer_name IS NULL OR TRIM(inv.consumer_name) = '') THEN 'DT'
-                            WHEN inv.metertype = 'HTCTPTSM' AND (inv.consumer_name IS NULL OR TRIM(inv.consumer_name) = '') THEN 'FEEDER'
+                            WHEN inv.metertype = '3PLTCTSM' AND (inv.consumerno IS NULL OR TRIM(inv.consumerno) = '') THEN 'DT'
+                            WHEN inv.metertype = 'HTCTPTSM' AND (inv.consumerno IS NULL OR TRIM(inv.consumerno) = '') THEN 'FEEDER'
                             ELSE 'CONSUMER'
                         END
                 END as refined_category

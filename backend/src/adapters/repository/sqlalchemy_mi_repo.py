@@ -13,6 +13,34 @@ from .models import (
     MITechnicianProductivityDashboard,
     DashboardCommandCenter, DashboardCommandCenterTrend, DashboardCommandCenterMilestone
 )
+
+
+# Shared constants for nested-by-meter-type / nested-by-category responses
+# (used by KPI 9 — Meter Journey, KPI 10 — Meter Funnel, KPI 13 — Revenue Ageing, etc.).
+CONSUMER_SUBCATEGORY_MAP = {
+    "1PH-STSM": "1PH-Consumer_meter",
+    "NBSM-1PH": "1PH-Consumer_meter",
+    "NSM1-PH":  "1PH-Consumer_meter",
+    "3PH-STSM": "3PH-Consumer_meter",
+    "3PNBLTSM": "3PH-Consumer_meter",
+    "NBSM-3PH": "3PH-Consumer_meter",
+    "NSM3-PH":  "3PH-Consumer_meter",
+    "3LTTOUSM": "3PH-Consumer_meter",
+    "HTNBTOUS": "3PH-Consumer_meter",
+    "HT-TOUSM": "3PH-Consumer_meter",
+    "LT-NBTOUS": "3PH-Consumer_meter",
+    "3PLTCTSM": "LTCT-Consumer_meter",
+    "HTCTPTSM": "HTCT-Consumer_meter",
+}
+CONSUMER_SUB_KEYS = [
+    "1PH-Consumer_meter",
+    "3PH-Consumer_meter",
+    "LTCT-Consumer_meter",
+    "HTCT-Consumer_meter",
+]
+CATEGORY_KEYS = ["CONSUMER", "FEEDER", "DT"]
+
+
 class SQLAlchemyMIRepository(IMIRepository):
     def __init__(self, session: Session):
         self.session = session
@@ -60,6 +88,22 @@ class SQLAlchemyMIRepository(IMIRepository):
         - trend series (per period)
         - comparison bars (clustered by selected level)
         """
+        CONSUMER_SUBCATEGORY_MAP = {
+            "1PH-STSM": "1PH-Consumer_meter",
+            "NBSM-1PH": "1PH-Consumer_meter",
+            "NSM1-PH": "1PH-Consumer_meter",
+            "3PH-STSM": "3PH-Consumer_meter",
+            "3PNBLTSM": "3PH-Consumer_meter",
+            "NBSM-3PH": "3PH-Consumer_meter",
+            "NSM3-PH": "3PH-Consumer_meter",
+            "3LTTOUSM": "3PH-Consumer_meter",
+            "HTNBTOUS": "3PH-Consumer_meter",
+            "HT-TOUSM": "3PH-Consumer_meter",
+            "LT-NBTOUS": "3PH-Consumer_meter",
+            "3PLTCTSM": "LTCT-Consumer_meter",
+            "HTCTPTSM": "HTCT-Consumer_meter",
+        }
+
         duration = (filters.get("duration") or filters.get("period") or "daily").lower()
         level = (filters.get("level") or "discom").lower()
         project = (filters.get("project") or "all").lower()
@@ -104,35 +148,56 @@ class SQLAlchemyMIRepository(IMIRepository):
             q = q.filter(pv_date <= func.to_date(end_date, "YYYY-MM-DD"))
 
         # 1) Cumulative total + meter_type breakdown
-        total = q.with_entities(func.sum(MIProgress.total_mi_progress)).scalar() or 0
-
-        breakdown_rows = q.with_entities(
-            MIProgress.meter_category,
-            MIProgress.new_meter_type,
-            func.sum(MIProgress.total_mi_progress),
-        ).group_by(MIProgress.meter_category, MIProgress.new_meter_type).all()
-        category_breakdown = self._format_nested_breakdown(breakdown_rows, ["count"])
+        total_val = q.with_entities(func.sum(MIProgress.total_mi_progress)).scalar() or 0
+        total = int(total_val)
 
         # 2) Trend (period -> category totals)
         trend_rows = q.with_entities(
             MIProgress.period_value,
             MIProgress.meter_category,
+            MIProgress.new_meter_type,
             func.sum(MIProgress.total_mi_progress),
-        ).group_by(MIProgress.period_value, MIProgress.meter_category).order_by(pv_date.asc()).all()
+        ).group_by(MIProgress.period_value, MIProgress.meter_category, MIProgress.new_meter_type).order_by(pv_date.asc()).all()
 
-        trend_map: Dict[str, Dict[str, int]] = {}
-        for period_value, cat, cnt in trend_rows:
+        trend_map = {}
+        for period_value, cat, meter_type, cnt in trend_rows:
             pv = str(period_value)
             c = str(cat) if cat is not None else "Unknown"
-            trend_map.setdefault(pv, {"CONSUMER": 0, "FEEDER": 0, "DT": 0})
-            if c in trend_map[pv]:
-                trend_map[pv][c] += int(cnt or 0)
+            cnt = int(cnt or 0)
+            
+            if pv not in trend_map:
+                if category == "total":
+                    trend_map[pv] = {"period_value": pv, "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0}
+                elif category == "consumer":
+                    trend_map[pv] = {
+                        "period_value": pv, 
+                        "total": 0, 
+                        "1PH-Consumer_meter": 0,
+                        "3PH-Consumer_meter": 0,
+                        "LTCT-Consumer_meter": 0,
+                        "HTCT-Consumer_meter": 0
+                    }
+                else: # feeder or dt
+                    trend_map[pv] = {"period_value": pv, meter_category: 0}
 
-        trend = [{"period_value": pv, **vals} for pv, vals in trend_map.items()]
+            if category == "total":
+                if c in trend_map[pv] and c != "total" and c != "period_value":
+                    trend_map[pv][c] += cnt
+                    trend_map[pv]["total"] += cnt
+            elif category == "consumer":
+                trend_map[pv]["total"] += cnt
+            else:
+                trend_map[pv][meter_category] += cnt
+
+            if category == "consumer" and c == "CONSUMER":
+                sub_cat = CONSUMER_SUBCATEGORY_MAP.get(meter_type)
+                if sub_cat in trend_map[pv]:
+                    trend_map[pv][sub_cat] += cnt
+
+        trend = list(trend_map.values())
 
         # 3) Comparison bars - with category breakdown (CONSUMER, FEEDER, DT)
-        # Build a map: label -> {CONSUMER: int, FEEDER: int, DT: int}
-        comparison_map: Dict[str, Dict[str, int]] = {}
+        comparison_map = {}
 
         # Determine grouping columns based on level and project
         if level == "discom" and project == "all":
@@ -153,39 +218,53 @@ class SQLAlchemyMIRepository(IMIRepository):
         q_comp = q.with_entities(
             group_expr.label("label"),
             MIProgress.meter_category,
+            MIProgress.new_meter_type,
             func.sum(MIProgress.total_mi_progress).label("count"),
-        ).group_by(group_expr, MIProgress.meter_category).order_by("label")
+        ).group_by(group_expr, MIProgress.meter_category, MIProgress.new_meter_type).order_by("label")
 
         cmp_rows = q_comp.all()
 
-        # Build pivot structure: label -> {CONSUMER: 0, FEEDER: 0, DT: 0}
+        # Build pivot structure
         for row in cmp_rows:
             label = row[0]
-            category = row[1]  # "CONSUMER", "FEEDER", or "DT"
-            cnt = int(row[2] or 0)
+            cat = row[1]
+            meter_type = row[2]
+            cnt = int(row[3] or 0)
+            c = str(cat) if cat is not None else "Unknown"
 
             if label not in comparison_map:
-                comparison_map[label] = {"CONSUMER": 0, "FEEDER": 0, "DT": 0}
+                if category == "total":
+                    comparison_map[label] = {"label": label, "CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0}
+                elif category == "consumer":
+                    comparison_map[label] = {
+                        "label": label, 
+                        "total": 0, 
+                        "1PH-Consumer_meter": 0,
+                        "3PH-Consumer_meter": 0,
+                        "LTCT-Consumer_meter": 0,
+                        "HTCT-Consumer_meter": 0
+                    }
+                else: # feeder or dt
+                    comparison_map[label] = {"label": label, meter_category: 0}
 
-            # Only count known categories; others are ignored
-            if category in comparison_map[label]:
-                comparison_map[label][category] += cnt
+            if category == "total":
+                if c in comparison_map[label] and c != "total" and c != "label":
+                    comparison_map[label][c] += cnt
+                    comparison_map[label]["total"] += cnt
+            elif category == "consumer":
+                comparison_map[label]["total"] += cnt
+            else:
+                comparison_map[label][meter_category] += cnt
 
-        # Convert map to list of comparison items, with total count
-        comparison = [
-            {
-                "label": label,
-                "CONSUMER": vals["CONSUMER"],
-                "FEEDER": vals["FEEDER"],
-                "DT": vals["DT"],
-                "count": vals["CONSUMER"] + vals["FEEDER"] + vals["DT"],
-            }
-            for label, vals in sorted(comparison_map.items())
-        ]
+            if category == "consumer" and c == "CONSUMER":
+                sub_cat = CONSUMER_SUBCATEGORY_MAP.get(meter_type)
+                if sub_cat in comparison_map[label]:
+                    comparison_map[label][sub_cat] += cnt
+
+        comparison = sorted(list(comparison_map.values()), key=lambda x: x["label"])
 
         return {
-            "total_progress": int(total),
-            "category_breakdown": category_breakdown,
+            "total_progress": total,
             "trend": trend,
             "comparison": comparison,
         }
@@ -698,7 +777,24 @@ class SQLAlchemyMIRepository(IMIRepository):
 
     def get_inventory_utilization_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         from datetime import datetime
-        
+
+        CONSUMER_SUBCATEGORY_MAP = {
+            "1PH-STSM": "1PH-Consumer_meter",
+            "NBSM-1PH": "1PH-Consumer_meter",
+            "NSM1-PH": "1PH-Consumer_meter",
+            "3PH-STSM": "3PH-Consumer_meter",
+            "3PNBLTSM": "3PH-Consumer_meter",
+            "NBSM-3PH": "3PH-Consumer_meter",
+            "NSM3-PH": "3PH-Consumer_meter",
+            "3LTTOUSM": "3PH-Consumer_meter",
+            "HTNBTOUS": "3PH-Consumer_meter",
+            "HT-TOUSM": "3PH-Consumer_meter",
+            "LT-NBTOUS": "3PH-Consumer_meter",
+            "3PLTCTSM": "LTCT-Consumer_meter",
+            "HTCTPTSM": "HTCT-Consumer_meter",
+        }
+        CONSUMER_SUB_KEYS = ["1PH-Consumer_meter", "3PH-Consumer_meter", "LTCT-Consumer_meter", "HTCT-Consumer_meter"]
+
         # Extract special parameters
         level = (filters.pop("level", None) or "discom").lower()
         project = (filters.pop("project", None) or "all").lower()
@@ -746,36 +842,46 @@ class SQLAlchemyMIRepository(IMIRepository):
         total_inst = int(res[1] or 0)
         rem_stock = int(res[2] or 0)
         util_rate = (total_inst / total_inv * 100) if total_inv > 0 else 0.0
-        
-        # Define fields to extract for breakdowns based on whether it is pace_vs_stock or not
-        breakdown_keys = ["total_inventory", "total_installed", "remaining_stock" if is_pace_vs_stock else "utilization_rate_pct"]
-        
-        # Helper to compute utilization_rate_pct for dicts
-        def add_computed_fields(tree):
-            if isinstance(tree, dict):
-                if "total_inventory" in tree and "total_installed" in tree:
-                    inv = tree["total_inventory"]
-                    inst = tree["total_installed"]
-                    if not is_pace_vs_stock:
-                        tree["utilization_rate_pct"] = round(float(inst / inv * 100), 2) if inv > 0 else 0.0
-                    else:
-                        tree["remaining_stock"] = max(0, inv - inst)
-                for k, v in tree.items():
-                    if isinstance(v, dict):
-                        add_computed_fields(v)
 
-        # 2. Nested Category Breakdown (No period)
-        cat_rows = q.with_entities(
-            InventoryUtilization.meter_category,
-            InventoryUtilization.new_meter_type,
-            func.sum(InventoryUtilization.total_inventory),
-            func.sum(InventoryUtilization.total_installed)
-        ).group_by(InventoryUtilization.meter_category, InventoryUtilization.new_meter_type).all()
-        
-        category_breakdown = self._format_nested_breakdown(cat_rows, ["total_inventory", "total_installed"])
-        add_computed_fields(category_breakdown)
-        
-        # 3. Nested Period Breakdown (Trend)
+        # Helper: build empty sub-keys dict based on category
+        def _empty_sub_keys():
+            if category_param == "consumer":
+                return {k: {"inventory": 0, "installed": 0} for k in CONSUMER_SUB_KEYS}
+            elif category_param == "total":
+                return {k: {"inventory": 0, "installed": 0} for k in ("CONSUMER", "FEEDER", "DT")}
+            else:
+                # feeder or dt — no sub-keys, just use totals
+                return {}
+
+        # Helper: get the key name for a given row's meter_category + new_meter_type
+        def _category_key(row_cat, row_meter_type):
+            cat = str(row_cat).upper() if row_cat else "UNKNOWN"
+            if category_param == "consumer" and cat == "CONSUMER":
+                return CONSUMER_SUBCATEGORY_MAP.get(row_meter_type)
+            elif category_param == "total":
+                return cat if cat in ("CONSUMER", "FEEDER", "DT") else None
+            else:
+                # feeder or dt — no specific sub-key
+                return None
+
+        def _nested_bucket_key_order():
+            if category_param == "consumer":
+                return CONSUMER_SUB_KEYS
+            if category_param == "total":
+                return ("CONSUMER", "FEEDER", "DT")
+            return ()
+
+        def _bucket_output(binv: int, binst: int) -> Dict[str, Any]:
+            out: Dict[str, Any] = {"inventory": binv, "installed": binst}
+            if is_pace_vs_stock:
+                out["remaining_stock"] = max(0, binv - binst)
+            else:
+                out["utilization_rate_pct"] = (
+                    round(float(binst / binv * 100), 2) if binv > 0 else 0.0
+                )
+            return out
+
+        # 2. Period Breakdown (Flat Array)
         per_rows = q.with_entities(
             InventoryUtilization.period_value,
             InventoryUtilization.meter_category,
@@ -784,7 +890,7 @@ class SQLAlchemyMIRepository(IMIRepository):
             func.sum(InventoryUtilization.total_installed)
         ).group_by(InventoryUtilization.period_value, InventoryUtilization.meter_category, InventoryUtilization.new_meter_type).all()
         
-        # Sort periods chronologically in Python just like MIvsSAT
+        # Sort periods chronologically
         def period_sort_key(row):
             label = row[0]
             try:
@@ -799,13 +905,60 @@ class SQLAlchemyMIRepository(IMIRepository):
                 return datetime.min.date()
                 
         per_rows = sorted(per_rows, key=period_sort_key)
-        period_breakdown = self._format_nested_breakdown(per_rows, ["total_inventory", "total_installed"])
-        add_computed_fields(period_breakdown)
 
-        # 4. Comparison Array
-        comparison: List[Dict[str, Any]] = []
-        comparison_map: Dict[str, Dict[str, Dict[str, int]]] = {}
+        # Build flat period map
+        period_map = {}
+        for row in per_rows:
+            pv = str(row[0])
+            inv_val = int(row[3] or 0)
+            inst_val = int(row[4] or 0)
 
+            if pv not in period_map:
+                period_map[pv] = {
+                    "period_value": pv,
+                    "total_inventory": 0,
+                    "total_installed": 0,
+                    **_empty_sub_keys(),
+                }
+
+            period_map[pv]["total_inventory"] += inv_val
+            period_map[pv]["total_installed"] += inst_val
+
+            key = _category_key(row[1], row[2])
+            if key and key in period_map[pv]:
+                period_map[pv][key]["inventory"] += inv_val
+                period_map[pv][key]["installed"] += inst_val
+
+        # Reorder and add rate field to each period
+        period_breakdown = []
+        for pv, item in period_map.items():
+            inv = item["total_inventory"]
+            inst = item["total_installed"]
+            
+            ordered_item = {
+                "period_value": pv,
+                "total_inventory": inv,
+                "total_installed": inst,
+            }
+            
+            if is_pace_vs_stock:
+                ordered_item["remaining_stock"] = max(0, inv - inst)
+            else:
+                ordered_item["utilization_rate_pct"] = round(float(inst / inv * 100), 2) if inv > 0 else 0.0
+
+            bucket_keys = _nested_bucket_key_order()
+            if bucket_keys:
+                for bk in bucket_keys:
+                    sub = item[bk]
+                    ordered_item[bk] = _bucket_output(sub["inventory"], sub["installed"])
+            else:
+                for k, v in item.items():
+                    if k not in ["period_value", "total_inventory", "total_installed"]:
+                        ordered_item[k] = v
+
+            period_breakdown.append(ordered_item)
+
+        # 3. Comparison Array
         if level == "discom" and project == "all":
             group_expr = func.upper(func.trim(InventoryUtilization.project))
         else:
@@ -820,51 +973,67 @@ class SQLAlchemyMIRepository(IMIRepository):
         comp_rows = q.with_entities(
             group_expr.label("label"),
             InventoryUtilization.meter_category,
+            InventoryUtilization.new_meter_type,
             func.sum(InventoryUtilization.total_inventory),
             func.sum(InventoryUtilization.total_installed),
-        ).group_by(group_expr, InventoryUtilization.meter_category).order_by("label").all()
+        ).group_by(group_expr, InventoryUtilization.meter_category, InventoryUtilization.new_meter_type).order_by("label").all()
 
+        comparison_map: Dict[str, Dict[str, Any]] = {}
         for row in comp_rows:
             label = row[0]
-            category = str(row[1]).upper() if row[1] else "UNKNOWN"
-            inv_val = int(row[2] or 0)
-            inst_val = int(row[3] or 0)
+            inv_val = int(row[3] or 0)
+            inst_val = int(row[4] or 0)
 
             if label not in comparison_map:
                 comparison_map[label] = {
-                    "CONSUMER": {"inv": 0, "inst": 0},
-                    "FEEDER": {"inv": 0, "inst": 0},
-                    "DT": {"inv": 0, "inst": 0},
+                    "label": label,
+                    "total_inventory": 0,
+                    "total_installed": 0,
+                    **_empty_sub_keys(),
                 }
 
-            if category in comparison_map[label]:
-                comparison_map[label][category]["inv"] += inv_val
-                comparison_map[label][category]["inst"] += inst_val
+            comparison_map[label]["total_inventory"] += inv_val
+            comparison_map[label]["total_installed"] += inst_val
 
-        for label, cats in sorted(comparison_map.items()):
-            c_inv = cats["CONSUMER"]["inv"] + cats["FEEDER"]["inv"] + cats["DT"]["inv"]
-            c_inst = cats["CONSUMER"]["inst"] + cats["FEEDER"]["inst"] + cats["DT"]["inst"]
+            key = _category_key(row[1], row[2])
+            if key and key in comparison_map[label]:
+                comparison_map[label][key]["inventory"] += inv_val
+                comparison_map[label][key]["installed"] += inst_val
+
+        comparison: List[Dict[str, Any]] = []
+        for label in sorted(comparison_map.keys()):
+            item = comparison_map[label]
+            inv = item["total_inventory"]
+            inst = item["total_installed"]
             
-            comp_item = {
+            ordered_item = {
                 "label": label,
-                "total_inventory": c_inv,
-                "total_installed": c_inst,
-                "CONSUMER": cats["CONSUMER"]["inst"],
-                "FEEDER": cats["FEEDER"]["inst"],
-                "DT": cats["DT"]["inst"],
+                "total_inventory": inv,
+                "total_installed": inst,
             }
+            
             if is_pace_vs_stock:
-                comp_item["remaining_stock"] = max(0, c_inv - c_inst)
+                ordered_item["remaining_stock"] = max(0, inv - inst)
             else:
-                comp_item["utilization_rate_pct"] = round(float(c_inst / c_inv * 100), 2) if c_inv > 0 else 0.0
-            comparison.append(comp_item)
+                ordered_item["utilization_rate_pct"] = round(float(inst / inv * 100), 2) if inv > 0 else 0.0
+
+            bucket_keys = _nested_bucket_key_order()
+            if bucket_keys:
+                for bk in bucket_keys:
+                    sub = item[bk]
+                    ordered_item[bk] = _bucket_output(sub["inventory"], sub["installed"])
+            else:
+                for k, v in item.items():
+                    if k not in ["label", "total_inventory", "total_installed"]:
+                        ordered_item[k] = v
+
+            comparison.append(ordered_item)
 
         return {
             "total_inventory": total_inv,
             "total_installed": total_inst,
             "utilization_rate_pct": round(float(util_rate), 2),
             "remaining_stock": rem_stock,
-            "category_breakdown": category_breakdown, 
             "period_breakdown": period_breakdown,
             "comparison": comparison
         }
@@ -873,21 +1042,37 @@ class SQLAlchemyMIRepository(IMIRepository):
         from sqlalchemy import func
         from datetime import datetime
 
-        # Extract special parameters (same pattern as get_mi_progress_dashboard)
+        CONSUMER_SUBCATEGORY_MAP = {
+            "1PH-STSM": "1PH-Consumer_meter",
+            "NBSM-1PH": "1PH-Consumer_meter",
+            "NSM1-PH": "1PH-Consumer_meter",
+            "3PH-STSM": "3PH-Consumer_meter",
+            "3PNBLTSM": "3PH-Consumer_meter",
+            "NBSM-3PH": "3PH-Consumer_meter",
+            "NSM3-PH": "3PH-Consumer_meter",
+            "3LTTOUSM": "3PH-Consumer_meter",
+            "HTNBTOUS": "3PH-Consumer_meter",
+            "HT-TOUSM": "3PH-Consumer_meter",
+            "LT-NBTOUS": "3PH-Consumer_meter",
+            "3PLTCTSM": "LTCT-Consumer_meter",
+            "HTCTPTSM": "HTCT-Consumer_meter",
+        }
+        CONSUMER_SUB_KEYS = ["1PH-Consumer_meter", "3PH-Consumer_meter", "LTCT-Consumer_meter", "HTCT-Consumer_meter"]
+        SAT_STAGES = ["sat_1", "sat_2", "sat_3", "sat_4", "sat_5", "sat_6", "sat_7", "sat_8", "sat_9"]
+
+        # Extract special parameters
         level = (filters.pop("level", None) or "discom").lower()
         project = (filters.pop("project", None) or "all").lower()
         duration = (filters.get("duration") or filters.get("period") or "daily").lower()
-        # Category handling: support both 'category' and 'meter_category' keys
         category_param = (filters.pop("category", None) or filters.pop("meter_category", None) or "total").lower()
         category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT"}
-        meter_category = category_map.get(category_param)  # None for "total" or unknown
+        meter_category = category_map.get(category_param)
         start_date = filters.pop("start_date", None)
         end_date = filters.pop("end_date", None)
 
-        # Build base query with remaining geo/dim filters
+        # Build base query
         q = self.session.query(MIvsSAT)
         q = self._apply_filters(q, MIvsSAT, filters)
-        # Note: MIvsSAT table only stores daily period_type; duration is used only for aggregation grouping
 
         # Project scope
         default_projects = ["AGRA", "KASHI", "TRIVENI"]
@@ -900,15 +1085,89 @@ class SQLAlchemyMIRepository(IMIRepository):
         if meter_category is not None:
             q = q.filter(func.upper(func.trim(MIvsSAT.meter_category)) == meter_category)
 
-        # Date filtering using period_value -> date conversion
+        # Date filtering
         pv_date = self._period_value_as_date(MIvsSAT, duration)
         if start_date:
             q = q.filter(pv_date >= func.to_date(start_date, "YYYY-MM-DD"))
         if end_date:
             q = q.filter(pv_date <= func.to_date(end_date, "YYYY-MM-DD"))
 
+        # Helper: build empty SAT stage bucket based on category
+        def _empty_bucket():
+            if category_param == "consumer":
+                return {k: 0 for k in CONSUMER_SUB_KEYS + ["total"]}
+            elif category_param == "total":
+                return {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0}
+            else:
+                return 0  # flat integer for feeder/dt
+
+        # Helper: get the sub-key for a given row
+        def _category_key(row_cat, row_meter_type):
+            cat = str(row_cat).upper() if row_cat else "UNKNOWN"
+            if category_param == "consumer" and cat == "CONSUMER":
+                return CONSUMER_SUBCATEGORY_MAP.get(row_meter_type)
+            elif category_param == "total":
+                return cat if cat in ("CONSUMER", "FEEDER", "DT") else None
+            else:
+                return None
+
         # 1. Aggregate main totals
         res = q.with_entities(
+            func.sum(MIvsSAT.total_mi),
+            func.sum(MIvsSAT.total_sat),
+        ).first()
+
+        t_mi = int(res[0] or 0)
+        t_sat = int(res[1] or 0)
+        pct = round((t_sat / t_mi * 100), 2) if t_mi > 0 else 0.0
+
+        # 2. Build Summary — query grouped by meter_category + new_meter_type
+        s_rows = q.with_entities(
+            MIvsSAT.meter_category,
+            MIvsSAT.new_meter_type,
+            func.sum(MIvsSAT.sat_1),
+            func.sum(MIvsSAT.sat_2),
+            func.sum(MIvsSAT.sat_3),
+            func.sum(MIvsSAT.sat_4),
+            func.sum(MIvsSAT.sat_5),
+            func.sum(MIvsSAT.sat_6),
+            func.sum(MIvsSAT.sat_7),
+            func.sum(MIvsSAT.sat_8),
+            func.sum(MIvsSAT.sat_9),
+        ).group_by(MIvsSAT.meter_category, MIvsSAT.new_meter_type).all()
+
+        summary: Dict[str, Any] = {stage: _empty_bucket() for stage in SAT_STAGES}
+
+        for r in s_rows:
+            stage_vals = [int(r[i] or 0) for i in range(2, 11)]
+
+            if category_param in ("feeder", "dt"):
+                for idx, stage in enumerate(SAT_STAGES):
+                    summary[stage] += stage_vals[idx]
+            else:
+                key = _category_key(r[0], r[1])
+                if key:
+                    for idx, stage in enumerate(SAT_STAGES):
+                        if key in summary[stage]:
+                            summary[stage][key] += stage_vals[idx]
+                        summary[stage]["total"] += stage_vals[idx]
+
+        # 3. Build Comparison — grouped by level, meter_category, new_meter_type
+        if level == "discom" and project == "all":
+            group_expr = func.upper(func.trim(MIvsSAT.project))
+        else:
+            if not hasattr(MIvsSAT, level):
+                level = "discom"
+            level_col = getattr(MIvsSAT, level)
+            if project == "all" and level != "discom":
+                group_expr = func.concat(func.upper(func.trim(MIvsSAT.project)), " | ", func.coalesce(level_col, "Unknown"))
+            else:
+                group_expr = func.coalesce(level_col, "Unknown")
+
+        comp_rows = q.with_entities(
+            group_expr.label("label"),
+            MIvsSAT.meter_category,
+            MIvsSAT.new_meter_type,
             func.sum(MIvsSAT.total_mi),
             func.sum(MIvsSAT.total_sat),
             func.sum(MIvsSAT.sat_1),
@@ -920,146 +1179,51 @@ class SQLAlchemyMIRepository(IMIRepository):
             func.sum(MIvsSAT.sat_7),
             func.sum(MIvsSAT.sat_8),
             func.sum(MIvsSAT.sat_9),
-        ).first()
+        ).group_by(group_expr, MIvsSAT.meter_category, MIvsSAT.new_meter_type).order_by("label").all()
 
-        t_mi = int(res[0] or 0)
-        t_sat = int(res[1] or 0)
-        pct = round((t_sat / t_mi * 100), 2) if t_mi > 0 else 0.0
-
-        # 2. Nested Category Breakdown (include all SAT stages)
-        sat_keys = ["total_mi", "total_sat", "sat_1", "sat_2", "sat_3", "sat_4", "sat_5", "sat_6", "sat_7", "sat_8", "sat_9"]
-        cat_rows = q.with_entities(
-            MIvsSAT.meter_category,
-            MIvsSAT.new_meter_type,
-            func.sum(MIvsSAT.total_mi),
-            func.sum(MIvsSAT.total_sat),
-            func.sum(MIvsSAT.sat_1),
-            func.sum(MIvsSAT.sat_2),
-            func.sum(MIvsSAT.sat_3),
-            func.sum(MIvsSAT.sat_4),
-            func.sum(MIvsSAT.sat_5),
-            func.sum(MIvsSAT.sat_6),
-            func.sum(MIvsSAT.sat_7),
-            func.sum(MIvsSAT.sat_8),
-            func.sum(MIvsSAT.sat_9)
-        ).group_by(MIvsSAT.meter_category, MIvsSAT.new_meter_type).all()
-        category_breakdown = self._format_nested_breakdown(cat_rows, sat_keys)
-
-        # 3. Nested Period Breakdown (Trend) - aggregate by duration
-        period_keys = ["total_sat", "sat_1", "sat_2", "sat_3", "sat_4", "sat_5", "sat_6", "sat_7", "sat_8", "sat_9"]
-
-        # Determine period grouping expression based on duration
-        # All durations use DD-MM-YY format for period_value (start of period)
-        if duration == "monthly":
-            period_label_expr = func.to_char(func.date_trunc('month', pv_date), 'DD-MM-YY')
-        elif duration == "weekly":
-            period_label_expr = func.to_char(func.date_trunc('week', pv_date), 'DD-MM-YY')
-        else:  # daily
-            period_label_expr = MIvsSAT.period_value
-
-        per_rows = q.with_entities(
-            period_label_expr.label("period_label"),
-            MIvsSAT.meter_category,
-            MIvsSAT.new_meter_type,
-            func.sum(MIvsSAT.total_sat),
-            func.sum(MIvsSAT.sat_1),
-            func.sum(MIvsSAT.sat_2),
-            func.sum(MIvsSAT.sat_3),
-            func.sum(MIvsSAT.sat_4),
-            func.sum(MIvsSAT.sat_5),
-            func.sum(MIvsSAT.sat_6),
-            func.sum(MIvsSAT.sat_7),
-            func.sum(MIvsSAT.sat_8),
-            func.sum(MIvsSAT.sat_9)
-        ).group_by(period_label_expr, MIvsSAT.meter_category, MIvsSAT.new_meter_type).all()
-
-        # Sort periods chronologically in Python (all duration formats now use DD-MM-YY)
-        def period_sort_key(row):
-            label = row[0]
-            try:
-                return datetime.strptime(label, "%d-%m-%y").date()
-            except Exception:
-                return datetime.min.date()
-
-        per_rows = sorted(per_rows, key=period_sort_key)
-        per_rows_transformed = [(row[0], row[1], row[2]) + row[3:] for row in per_rows]
-        period_breakdown = self._format_nested_breakdown(per_rows_transformed, period_keys)
-
-        # 4. Build Comparison array (grouped by level/project, with category splits)
-        comparison: List[Dict[str, Any]] = []
-        comparison_map: Dict[str, Dict[str, Dict[str, int]]] = {}
-
-        # Determine grouping columns based on level and project
-        if level == "discom" and project == "all":
-            # Special case: compare the 3 projects - group by project only
-            group_expr = func.upper(func.trim(MIvsSAT.project))
-        else:
-            if not hasattr(MIvsSAT, level):
-                level = "discom"
-            level_col = getattr(MIvsSAT, level)
-            if project == "all" and level != "discom":
-                # Composite label: "PROJECT | LevelName"
-                group_expr = func.concat(func.upper(func.trim(MIvsSAT.project)), " | ", func.coalesce(level_col, "Unknown"))
-            else:
-                # Single-level grouping (by level or project)
-                group_expr = func.coalesce(level_col, "Unknown")
-
-        comp_rows = q.with_entities(
-            group_expr.label("label"),
-            MIvsSAT.meter_category,
-            func.sum(MIvsSAT.total_mi).label("total_mi"),
-            func.sum(MIvsSAT.total_sat).label("total_sat"),
-        ).group_by(group_expr, MIvsSAT.meter_category).order_by("label").all()
-
-        # Build pivot
-        for row in comp_rows:
-            label = row[0]
-            category = row[1]
-            mi_val = int(row[2] or 0)
-            sat_val = int(row[3] or 0)
+        comparison_map: Dict[str, Dict[str, Any]] = {}
+        for r in comp_rows:
+            label = str(r[0])
+            mi_val = int(r[3] or 0)
+            sat_val = int(r[4] or 0)
+            stage_vals = [int(r[i] or 0) for i in range(5, 14)]
 
             if label not in comparison_map:
                 comparison_map[label] = {
-                    "CONSUMER": {"mi": 0, "sat": 0},
-                    "FEEDER": {"mi": 0, "sat": 0},
-                    "DT": {"mi": 0, "sat": 0},
+                    "label": label,
+                    "total_mi": 0,
+                    "total_sat": 0,
+                    "sat_progress_pct": 0.0,
+                    **{stage: _empty_bucket() for stage in SAT_STAGES},
                 }
 
-            if category in comparison_map[label]:
-                comparison_map[label][category]["mi"] += mi_val
-                comparison_map[label][category]["sat"] += sat_val
+            comparison_map[label]["total_mi"] += mi_val
+            comparison_map[label]["total_sat"] += sat_val
 
-        # Convert to list
-        for label, cats in sorted(comparison_map.items()):
-            total_mi = cats["CONSUMER"]["mi"] + cats["FEEDER"]["mi"] + cats["DT"]["mi"]
-            total_sat = cats["CONSUMER"]["sat"] + cats["FEEDER"]["sat"] + cats["DT"]["sat"]
-            pct_val = round((total_sat / total_mi * 100), 2) if total_mi > 0 else 0.0
+            if category_param in ("feeder", "dt"):
+                for idx, stage in enumerate(SAT_STAGES):
+                    comparison_map[label][stage] += stage_vals[idx]
+            else:
+                key = _category_key(r[1], r[2])
+                if key:
+                    for idx, stage in enumerate(SAT_STAGES):
+                        if key in comparison_map[label][stage]:
+                            comparison_map[label][stage][key] += stage_vals[idx]
+                        comparison_map[label][stage]["total"] += stage_vals[idx]
 
-            comparison.append({
-                "label": label,
-                "CONSUMER": cats["CONSUMER"]["mi"],
-                "FEEDER": cats["FEEDER"]["mi"],
-                "DT": cats["DT"]["mi"],
-                "total_mi": total_mi,
-                "total_sat": total_sat,
-                "sat_progress_pct": pct_val,
-            })
+        comparison: List[Dict[str, Any]] = []
+        for label in sorted(comparison_map.keys()):
+            item = comparison_map[label]
+            c_mi = item["total_mi"]
+            c_sat = item["total_sat"]
+            item["sat_progress_pct"] = round((c_sat / c_mi * 100), 2) if c_mi > 0 else 0.0
+            comparison.append(item)
 
         return {
             "total_mi": t_mi,
             "total_sat": t_sat,
             "sat_progress_pct": pct,
-            "sat_1": int(res[2] or 0),
-            "sat_2": int(res[3] or 0),
-            "sat_3": int(res[4] or 0),
-            "sat_4": int(res[5] or 0),
-            "sat_5": int(res[6] or 0),
-            "sat_6": int(res[7] or 0),
-            "sat_7": int(res[8] or 0),
-            "sat_8": int(res[9] or 0),
-            "sat_9": int(res[10] or 0),
-            "category_breakdown": category_breakdown,
-            "period_breakdown": period_breakdown,
+            "summary": summary,
             "comparison": comparison,
         }
 
@@ -1075,6 +1239,27 @@ class SQLAlchemyMIRepository(IMIRepository):
         base_filters.pop("level", None)
         base_filters.pop("project", None)
         
+        category_param = (base_filters.pop("category", None) or base_filters.pop("meter_category", None) or "total").lower()
+        category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT"}
+        meter_category = category_map.get(category_param)
+        
+        CONSUMER_SUBCATEGORY_MAP = {
+            "1PH-STSM": "1PH-Consumer_meter",
+            "NBSM-1PH": "1PH-Consumer_meter",
+            "NSM1-PH": "1PH-Consumer_meter",
+            "3PH-STSM": "3PH-Consumer_meter",
+            "3PNBLTSM": "3PH-Consumer_meter",
+            "NBSM-3PH": "3PH-Consumer_meter",
+            "NSM3-PH": "3PH-Consumer_meter",
+            "3LTTOUSM": "3PH-Consumer_meter",
+            "HTNBTOUS": "3PH-Consumer_meter",
+            "HT-TOUSM": "3PH-Consumer_meter",
+            "LT-NBTOUS": "3PH-Consumer_meter",
+            "3PLTCTSM": "LTCT-Consumer_meter",
+            "HTCTPTSM": "HTCT-Consumer_meter",
+        }
+        CONSUMER_SUB_KEYS = ["1PH-Consumer_meter", "3PH-Consumer_meter", "LTCT-Consumer_meter", "HTCT-Consumer_meter"]
+        
         q = self.session.query(StockAgeing)
         q = self._apply_filters(q, StockAgeing, base_filters)
         
@@ -1086,6 +1271,9 @@ class SQLAlchemyMIRepository(IMIRepository):
             q = q.filter(func.upper(func.trim(StockAgeing.project)).in_(default_projects))
         else:
             q = q.filter(func.upper(func.trim(StockAgeing.project)) == project.upper())
+            
+        if meter_category is not None:
+            q = q.filter(func.upper(func.trim(StockAgeing.meter_category)) == meter_category)
 
         pv_date = self._period_value_as_date(StockAgeing, valid_duration)
         if start_date:
@@ -1107,8 +1295,25 @@ class SQLAlchemyMIRepository(IMIRepository):
         s90 = int(res[3] or 0)
         total_stock = s0 + s31 + s61 + s90
 
-        # 2. Category Breakdown
-        c_rows = q.with_entities(
+        def _empty_bucket():
+            if category_param == "consumer":
+                return {k: 0 for k in CONSUMER_SUB_KEYS + ["total"]}
+            elif category_param == "total":
+                return {k: 0 for k in ("CONSUMER", "FEEDER", "DT", "total")}
+            else:
+                return 0 # Flat integer for feeder/dt
+
+        def _category_key(row_cat, row_meter_type):
+            cat = str(row_cat).upper() if row_cat else "UNKNOWN"
+            if category_param == "consumer" and cat == "CONSUMER":
+                return CONSUMER_SUBCATEGORY_MAP.get(row_meter_type)
+            elif category_param == "total":
+                return cat if cat in ("CONSUMER", "FEEDER", "DT") else None
+            else:
+                return None
+
+        # 3. Overall Summary (Replaces Period Breakdown)
+        s_rows = q.with_entities(
             StockAgeing.meter_category,
             StockAgeing.new_meter_type,
             func.sum(StockAgeing.age_0_30),
@@ -1117,50 +1322,31 @@ class SQLAlchemyMIRepository(IMIRepository):
             func.sum(StockAgeing.age_90_plus)
         ).group_by(StockAgeing.meter_category, StockAgeing.new_meter_type).all()
         
-        vals = ["age_0_30", "age_31_60", "age_61_90", "age_90_plus"]
-        category_breakdown = self._format_nested_breakdown(c_rows, vals)
-
-        def add_total(node):
-            if isinstance(node, dict):
-                if 'age_0_30' in node:
-                    node['total'] = node.get('age_0_30', 0) + node.get('age_31_60', 0) + node.get('age_61_90', 0) + node.get('age_90_plus', 0)
-                for v in node.values():
-                    if isinstance(v, dict):
-                        add_total(v)
-        add_total(category_breakdown)
-
-        # 3. Period Breakdown (Trend)
-        p_rows = q.with_entities(
-            StockAgeing.period_value,
-            func.sum(StockAgeing.age_0_30),
-            func.sum(StockAgeing.age_31_60),
-            func.sum(StockAgeing.age_61_90),
-            func.sum(StockAgeing.age_90_plus)
-        ).group_by(StockAgeing.period_value).all()
+        summary = {
+            "age_0_30": _empty_bucket(),
+            "age_31_60": _empty_bucket(),
+            "age_61_90": _empty_bucket(),
+            "age_90_plus": _empty_bucket(),
+            "total_stock": 0
+        }
         
-        from datetime import datetime
-        def period_sort_key(row):
-            label = row[0]
-            try:
-                if valid_duration == "monthly" and len(str(label)) == 7:
-                    return datetime.strptime(str(label), "%Y-%m").date()
-                elif len(str(label)) == 8: # DD-MM-YY
-                    return datetime.strptime(str(label), "%d-%m-%y").date()
-                elif len(str(label)) == 10: # YYYY-MM-DD
-                    return datetime.strptime(str(label), "%Y-%m-%d").date()
-                return datetime.strptime(str(label), "%d-%m-%y").date()
-            except Exception:
-                return datetime.min.date()
-                
-        p_rows = sorted(p_rows, key=period_sort_key)
-        period_breakdown = []
-        for r in p_rows:
-            a0, a31, a61, a90 = int(r[1] or 0), int(r[2] or 0), int(r[3] or 0), int(r[4] or 0)
-            period_breakdown.append({
-                "period_value": str(r[0]),
-                "age_0_30": a0, "age_31_60": a31, "age_61_90": a61, "age_90_plus": a90,
-                "total_stock": a0 + a31 + a61 + a90
-            })
+        for r in s_rows:
+            a0, a31, a61, a90 = int(r[2] or 0), int(r[3] or 0), int(r[4] or 0), int(r[5] or 0)
+            
+            summary["total_stock"] += (a0 + a31 + a61 + a90)
+            
+            if category_param in ("feeder", "dt"):
+                summary["age_0_30"] += a0
+                summary["age_31_60"] += a31
+                summary["age_61_90"] += a61
+                summary["age_90_plus"] += a90
+            else:
+                key = _category_key(r[0], r[1])
+                if key:
+                    for b_name, b_val in [("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61), ("age_90_plus", a90)]:
+                        if key in summary[b_name]:
+                            summary[b_name][key] += b_val
+                        summary[b_name]["total"] += b_val
 
         # 4. Comparison
         if level == "discom" and project == "all":
@@ -1177,46 +1363,50 @@ class SQLAlchemyMIRepository(IMIRepository):
         comp_rows = q.with_entities(
             group_expr.label("label"),
             StockAgeing.meter_category,
+            StockAgeing.new_meter_type,
             func.sum(StockAgeing.age_0_30),
             func.sum(StockAgeing.age_31_60),
             func.sum(StockAgeing.age_61_90),
             func.sum(StockAgeing.age_90_plus)
-        ).group_by(group_expr, StockAgeing.meter_category).order_by("label").all()
+        ).group_by(group_expr, StockAgeing.meter_category, StockAgeing.new_meter_type).order_by("label").all()
 
         comparison_map = {}
         for r in comp_rows:
             label = str(r[0])
-            cat = str(r[1]).upper() if r[1] else "UNKNOWN"
-            a0, a31, a61, a90 = [int(x or 0) for x in r[2:]]
+            a0, a31, a61, a90 = [int(x or 0) for x in r[3:]]
 
             if label not in comparison_map:
                 comparison_map[label] = {
                     "label": label,
-                    "age_0_30": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-                    "age_31_60": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-                    "age_61_90": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-                    "age_90_plus": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_0_30": _empty_bucket(),
+                    "age_31_60": _empty_bucket(),
+                    "age_61_90": _empty_bucket(),
+                    "age_90_plus": _empty_bucket(),
                     "total_stock": 0
                 }
             
             target = comparison_map[label]
-            buckets = [
-                ("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61), ("age_90_plus", a90)
-            ]
-            for b_key, b_val in buckets:
-                if cat in ("CONSUMER", "FEEDER", "DT"):
-                    target[b_key][cat] += b_val
-                target[b_key]["total"] += b_val
-            
             target["total_stock"] += (a0 + a31 + a61 + a90)
+            
+            if category_param in ("feeder", "dt"):
+                target["age_0_30"] += a0
+                target["age_31_60"] += a31
+                target["age_61_90"] += a61
+                target["age_90_plus"] += a90
+            else:
+                key = _category_key(r[1], r[2])
+                if key:
+                    for b_name, b_val in [("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61), ("age_90_plus", a90)]:
+                        if key in target[b_name]:
+                            target[b_name][key] += b_val
+                        target[b_name]["total"] += b_val
 
         comparison = list(comparison_map.values())
         comparison.sort(key=lambda x: x["label"])
 
         return {
             "total_stock": total_stock,
-            "category_breakdown": category_breakdown,
-            "period_breakdown": period_breakdown,
+            "summary": summary,
             "comparison": comparison
         }
 
@@ -1237,6 +1427,23 @@ class SQLAlchemyMIRepository(IMIRepository):
         category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT"}
         meter_category = category_map.get(category_param)
         
+        CONSUMER_SUBCATEGORY_MAP = {
+            "1PH-STSM": "1PH-Consumer_meter",
+            "NBSM-1PH": "1PH-Consumer_meter",
+            "NSM1-PH": "1PH-Consumer_meter",
+            "3PH-STSM": "3PH-Consumer_meter",
+            "3PNBLTSM": "3PH-Consumer_meter",
+            "NBSM-3PH": "3PH-Consumer_meter",
+            "NSM3-PH": "3PH-Consumer_meter",
+            "3LTTOUSM": "3PH-Consumer_meter",
+            "HTNBTOUS": "3PH-Consumer_meter",
+            "HT-TOUSM": "3PH-Consumer_meter",
+            "LT-NBTOUS": "3PH-Consumer_meter",
+            "3PLTCTSM": "LTCT-Consumer_meter",
+            "HTCTPTSM": "HTCT-Consumer_meter",
+        }
+        CONSUMER_SUB_KEYS = ["1PH-Consumer_meter", "3PH-Consumer_meter", "LTCT-Consumer_meter", "HTCT-Consumer_meter"]
+
         q = self.session.query(NonSATAgeing)
         q = self._apply_filters(q, NonSATAgeing, base_filters)
 
@@ -1256,91 +1463,60 @@ class SQLAlchemyMIRepository(IMIRepository):
 
         total_non_sat = q.count()
 
-        # Category Breakdown
-        c_rows = q.with_entities(
-            NonSATAgeing.meter_category,
-            func.count(NonSATAgeing.meter_serial_number)
-        ).group_by(NonSATAgeing.meter_category).all()
-        
-        category_breakdown = {"CONSUMER": 0, "FEEDER": 0, "DT": 0}
-        for r in c_rows:
-            cat = str(r[0]).upper() if r[0] else "UNKNOWN"
-            cnt = int(r[1] or 0)
-            if cat in category_breakdown:
-                category_breakdown[cat] += cnt
+        def _empty_bucket():
+            if category_param == "consumer":
+                return {k: 0 for k in CONSUMER_SUB_KEYS + ["total"]}
+            elif category_param == "total":
+                return {k: 0 for k in ("CONSUMER", "FEEDER", "DT", "total")}
+            else:
+                return 0
 
-        # Period Breakdown
-        if duration == "monthly":
-            p_expr = func.to_char(func.date_trunc('month', NonSATAgeing.installation_date), 'DD-MM-YY')
-        elif duration == "weekly":
-            p_expr = func.to_char(func.date_trunc('week', NonSATAgeing.installation_date), 'DD-MM-YY')
-        else:
-            p_expr = func.to_char(NonSATAgeing.installation_date, 'DD-MM-YY')
+        def _category_key(row_cat, row_meter_type):
+            cat = str(row_cat).upper() if row_cat else "UNKNOWN"
+            if category_param == "consumer" and cat == "CONSUMER":
+                return CONSUMER_SUBCATEGORY_MAP.get(row_meter_type)
+            elif category_param == "total":
+                return cat if cat in ("CONSUMER", "FEEDER", "DT") else None
+            else:
+                return None
 
-        p_rows = q.with_entities(
-            p_expr.label("period_value"),
-            func.sum(case((NonSATAgeing.ageing_days <= 30, 1), else_=0)),
-            func.sum(case(((NonSATAgeing.ageing_days > 30) & (NonSATAgeing.ageing_days <= 60), 1), else_=0)),
-            func.sum(case(((NonSATAgeing.ageing_days > 60) & (NonSATAgeing.ageing_days <= 90), 1), else_=0)),
-            func.sum(case(((NonSATAgeing.ageing_days > 90) & (NonSATAgeing.ageing_days <= 120), 1), else_=0)),
-            func.sum(case((NonSATAgeing.ageing_days > 120, 1), else_=0)),
-            func.count(NonSATAgeing.meter_serial_number)
-        ).group_by(p_expr).all()
-
-        from datetime import datetime
-        def period_sort_key_non_sat(row):
-            label = row[0]
-            try:
-                return datetime.strptime(str(label), "%d-%m-%y").date()
-            except Exception:
-                return datetime.min.date()
-                
-        p_rows = sorted(p_rows, key=period_sort_key_non_sat)
-        period_breakdown = []
-        for r in p_rows:
-            period_breakdown.append({
-                "period_value": str(r[0]),
-                "age_0_30": int(r[1] or 0),
-                "age_31_60": int(r[2] or 0),
-                "age_61_90": int(r[3] or 0),
-                "age_91_120": int(r[4] or 0),
-                "age_120_plus": int(r[5] or 0),
-                "total_non_sat": int(r[6] or 0)
-            })
-
-        # Summary calculation - group by category to get breakdown per bucket
+        # Summary calculation - group by category and meter_type to get breakdown per bucket
         s_rows = q.with_entities(
             NonSATAgeing.meter_category,
+            NonSATAgeing.new_meter_type,
             func.sum(case((NonSATAgeing.ageing_days <= 30, 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 30) & (NonSATAgeing.ageing_days <= 60), 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 60) & (NonSATAgeing.ageing_days <= 90), 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 90) & (NonSATAgeing.ageing_days <= 120), 1), else_=0)),
             func.sum(case((NonSATAgeing.ageing_days > 120, 1), else_=0)),
             func.count(NonSATAgeing.meter_serial_number)
-        ).group_by(NonSATAgeing.meter_category).all()
+        ).group_by(NonSATAgeing.meter_category, NonSATAgeing.new_meter_type).all()
 
         summary = {
-            "age_0_30": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-            "age_31_60": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-            "age_61_90": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-            "age_91_120": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-            "age_120_plus": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-            "total_non_sat": 0
+            "age_0_30": _empty_bucket(),
+            "age_31_60": _empty_bucket(),
+            "age_61_90": _empty_bucket(),
+            "age_91_120": _empty_bucket(),
+            "age_120_plus": _empty_bucket(),
+            "total_non_sat": total_non_sat
         }
 
         for r in s_rows:
-            cat = str(r[0]).upper() if r[0] else "UNKNOWN"
-            a0, a31, a61, a91, a120, cnt = [int(x or 0) for x in r[1:]]
+            a0, a31, a61, a91, a120 = [int(x or 0) for x in r[2:7]]
             
-            buckets = [
-                ("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61),
-                ("age_91_120", a91), ("age_120_plus", a120)
-            ]
-            for b_key, b_val in buckets:
-                if cat in ("CONSUMER", "FEEDER", "DT"):
-                    summary[b_key][cat] += b_val
-                summary[b_key]["total"] += b_val
-            summary["total_non_sat"] += cnt
+            if category_param in ("feeder", "dt"):
+                summary["age_0_30"] += a0
+                summary["age_31_60"] += a31
+                summary["age_61_90"] += a61
+                summary["age_91_120"] += a91
+                summary["age_120_plus"] += a120
+            else:
+                key = _category_key(r[0], r[1])
+                if key:
+                    for b_name, b_val in [("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61), ("age_91_120", a91), ("age_120_plus", a120)]:
+                        if key in summary[b_name]:
+                            summary[b_name][key] += b_val
+                        summary[b_name]["total"] += b_val
 
         # Comparison
         if level == "discom" and project == "all":
@@ -1357,55 +1533,53 @@ class SQLAlchemyMIRepository(IMIRepository):
         comp_rows = q.with_entities(
             group_expr.label("label"),
             NonSATAgeing.meter_category,
+            NonSATAgeing.new_meter_type,
             func.sum(case((NonSATAgeing.ageing_days <= 30, 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 30) & (NonSATAgeing.ageing_days <= 60), 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 60) & (NonSATAgeing.ageing_days <= 90), 1), else_=0)),
             func.sum(case(((NonSATAgeing.ageing_days > 90) & (NonSATAgeing.ageing_days <= 120), 1), else_=0)),
             func.sum(case((NonSATAgeing.ageing_days > 120, 1), else_=0)),
             func.count(NonSATAgeing.meter_serial_number)
-        ).group_by(group_expr, NonSATAgeing.meter_category).order_by("label").all()
+        ).group_by(group_expr, NonSATAgeing.meter_category, NonSATAgeing.new_meter_type).order_by("label").all()
 
         comparison_map = {}
         for r in comp_rows:
             label = str(r[0])
-            cat = str(r[1]).upper() if r[1] else "UNKNOWN"
-            a0, a31, a61, a91, a120, cnt = [int(x or 0) for x in r[2:]]
+            a0, a31, a61, a91, a120, cnt = [int(x or 0) for x in r[3:]]
 
             if label not in comparison_map:
                 comparison_map[label] = {
                     "label": label,
-                    "CONSUMER": 0, "FEEDER": 0, "DT": 0, "count": 0,
-                    "age_0_30": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-                    "age_31_60": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-                    "age_61_90": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-                    "age_91_120": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
-                    "age_120_plus": {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0},
+                    "age_0_30": _empty_bucket(),
+                    "age_31_60": _empty_bucket(),
+                    "age_61_90": _empty_bucket(),
+                    "age_91_120": _empty_bucket(),
+                    "age_120_plus": _empty_bucket(),
                     "total_non_sat": 0
                 }
             
             target = comparison_map[label]
-            if cat in ("CONSUMER", "FEEDER", "DT"):
-                target[cat] += cnt
-            
-            target["count"] += cnt
             target["total_non_sat"] += cnt
 
-            buckets = [
-                ("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61),
-                ("age_91_120", a91), ("age_120_plus", a120)
-            ]
-            for b_key, b_val in buckets:
-                if cat in ("CONSUMER", "FEEDER", "DT"):
-                    target[b_key][cat] += b_val
-                target[b_key]["total"] += b_val
+            if category_param in ("feeder", "dt"):
+                target["age_0_30"] += a0
+                target["age_31_60"] += a31
+                target["age_61_90"] += a61
+                target["age_91_120"] += a91
+                target["age_120_plus"] += a120
+            else:
+                key = _category_key(r[1], r[2])
+                if key:
+                    for b_name, b_val in [("age_0_30", a0), ("age_31_60", a31), ("age_61_90", a61), ("age_91_120", a91), ("age_120_plus", a120)]:
+                        if key in target[b_name]:
+                            target[b_name][key] += b_val
+                        target[b_name]["total"] += b_val
                 
         comparison = [v for k, v in sorted(comparison_map.items())]
 
         return {
             "total_non_sat": total_non_sat,
-            "category_breakdown": category_breakdown,
             "summary": summary,
-            "period_breakdown": period_breakdown,
             "comparison": comparison
         }
 
@@ -1489,117 +1663,179 @@ class SQLAlchemyMIRepository(IMIRepository):
 
     def get_meter_journey_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Meter journey dashboard from **pre-aggregated** ``sql_meter_journey_avg_time`` (with ``period_type`` /
-        ``period_value`` buckets from ETL).
+        Meter journey dashboard from **pre-aggregated** ``sql_meter_journey_avg_time``.
 
-        **Summary** and **comparison**: weighted stage means over all matching fine-grained rows in the
-        selected ``duration`` and optional date range.
-
-        **Trend**: one row per ``period_value`` in that range (same weighting within each period).
+        When ``category=consumer``, each stage field is nested by meter-type group
+        (1PH / 3PH / LTCT / HTCT + total).  When ``category=total``, nested by
+        CONSUMER / FEEDER / DT + total.  Otherwise flat integers.
         """
         M = MeterJourneyAvgTime
         w = M.meter_count
 
-        q_sum, duration = self._mj_dashboard_base_query(filters)
-        summary_row = q_sum.with_entities(
-            self._mj_weighted_stage(M.inventory_to_store, w, "inventory_to_store"),
-            self._mj_weighted_stage(M.store_to_agency, w, "store_to_agency"),
-            self._mj_weighted_stage(M.agency_to_meter_installation, w, "agency_to_meter_installation"),
-            self._mj_weighted_stage(M.meter_installation_to_sat, w, "meter_installation_to_sat"),
-            self._mj_weighted_stage(M.sat_to_invoice, w, "sat_to_invoice"),
-            self._mj_weighted_stage(M.invoice_to_revenue, w, "invoice_to_revenue"),
-            self._mj_weighted_stage(M.total_journey, w, "total_journey"),
-            func.coalesce(func.sum(w), 0).label("meter_count"),
-        ).one()
-        summary = self._mj_format_summary_row(summary_row._mapping)
+        _STAGE_COLS = [
+            "inventory_to_store", "store_to_agency",
+            "agency_to_meter_installation", "meter_installation_to_sat",
+            "sat_to_invoice", "invoice_to_revenue", "total_journey",
+        ]
 
+        category_param = str(filters.get("category") or "total").lower()
+
+        def _empty_stage_bucket():
+            if category_param == "consumer":
+                return {k: None for k in CONSUMER_SUB_KEYS + ["total"]}
+            if category_param == "total":
+                return {k: None for k in CATEGORY_KEYS + ["total"]}
+            return None
+
+        def _empty_count_bucket():
+            if category_param == "consumer":
+                return {k: 0 for k in CONSUMER_SUB_KEYS + ["total"]}
+            if category_param == "total":
+                return {k: 0 for k in CATEGORY_KEYS + ["total"]}
+            return 0
+
+        def _sub_key(row_cat, row_meter_type):
+            cat = str(row_cat).upper() if row_cat else "UNKNOWN"
+            if category_param == "consumer" and cat == "CONSUMER":
+                return CONSUMER_SUBCATEGORY_MAP.get(row_meter_type)
+            if category_param == "total":
+                return cat if cat in CATEGORY_KEYS else None
+            return None
+
+        needs_nesting = category_param in ("consumer", "total")
+
+        # ── flat path (feeder / dt) ──────────────────────────────────
+        if not needs_nesting:
+            q_sum, _ = self._mj_dashboard_base_query(filters)
+            summary_row = q_sum.with_entities(
+                *[self._mj_weighted_stage(getattr(M, c), w, c) for c in _STAGE_COLS],
+                func.coalesce(func.sum(w), 0).label("meter_count"),
+            ).one()
+            summary = self._mj_format_flat_row(summary_row._mapping, _STAGE_COLS)
+
+            level = (filters.get("level") or "discom").lower()
+            project = str(filters.get("project") or "all").lower()
+            grp = self._mj_comparison_group_expr(M, level, project)
+            q_cmp, _ = self._mj_dashboard_base_query(filters)
+            cmp_rows = q_cmp.with_entities(
+                grp.label("label"),
+                *[self._mj_weighted_stage(getattr(M, c), w, c) for c in _STAGE_COLS],
+                func.coalesce(func.sum(w), 0).label("meter_count"),
+            ).group_by(grp).order_by(grp).all()
+
+            comparison = []
+            for r in cmp_rows:
+                row_dict = self._mj_format_flat_row(r._mapping, _STAGE_COLS)
+                lbl = r._mapping["label"]
+                label_str = str(lbl).strip() if lbl else "Unknown"
+                comparison.append({"label": label_str, **row_dict})
+
+            return {"summary": summary, "comparison": comparison}
+
+        # ── nested path (consumer / total) ───────────────────────────
+        # Summary: group by meter_category + new_meter_type
+        q_sum, _ = self._mj_dashboard_base_query(filters)
+        s_rows = q_sum.with_entities(
+            M.meter_category,
+            M.new_meter_type,
+            *[self._mj_weighted_stage(getattr(M, c), w, c) for c in _STAGE_COLS],
+            func.coalesce(func.sum(w), 0).label("meter_count"),
+        ).group_by(M.meter_category, M.new_meter_type).all()
+
+        summary: Dict[str, Any] = {c: _empty_stage_bucket() for c in _STAGE_COLS}
+        summary["meter_count"] = _empty_count_bucket()
+
+        # accumulators for weighted-average totals across all sub-keys
+        total_num = {c: 0.0 for c in _STAGE_COLS}
+        total_den = {c: 0 for c in _STAGE_COLS}
+        total_meter_count = 0
+
+        for r in s_rows:
+            m = r._mapping
+            key = _sub_key(m["meter_category"], m["new_meter_type"])
+            if not key:
+                continue
+            mc = int(m["meter_count"] or 0)
+            total_meter_count += mc
+            if key in summary["meter_count"]:
+                summary["meter_count"][key] += mc
+            summary["meter_count"]["total"] += mc
+
+            for c in _STAGE_COLS:
+                raw = m[c]
+                if raw is not None:
+                    summary[c][key] = self._mj_whole_days(raw)
+                    total_num[c] += float(raw) * mc
+                    total_den[c] += mc
+
+        for c in _STAGE_COLS:
+            summary[c]["total"] = self._mj_whole_days(
+                total_num[c] / total_den[c] if total_den[c] else None
+            )
+
+        # Comparison: group by label + meter_category + new_meter_type
         level = (filters.get("level") or "discom").lower()
         project = str(filters.get("project") or "all").lower()
         grp = self._mj_comparison_group_expr(M, level, project)
         q_cmp, _ = self._mj_dashboard_base_query(filters)
         cmp_rows = q_cmp.with_entities(
             grp.label("label"),
-            self._mj_weighted_stage(M.inventory_to_store, w, "inventory_to_store"),
-            self._mj_weighted_stage(M.store_to_agency, w, "store_to_agency"),
-            self._mj_weighted_stage(M.agency_to_meter_installation, w, "agency_to_meter_installation"),
-            self._mj_weighted_stage(M.meter_installation_to_sat, w, "meter_installation_to_sat"),
-            self._mj_weighted_stage(M.sat_to_invoice, w, "sat_to_invoice"),
-            self._mj_weighted_stage(M.invoice_to_revenue, w, "invoice_to_revenue"),
-            self._mj_weighted_stage(M.total_journey, w, "total_journey"),
+            M.meter_category,
+            M.new_meter_type,
+            *[self._mj_weighted_stage(getattr(M, c), w, c) for c in _STAGE_COLS],
             func.coalesce(func.sum(w), 0).label("meter_count"),
-        ).group_by(grp).order_by(grp).all()
-        comparison = [self._mj_format_comparison_row(r._mapping) for r in cmp_rows]
+        ).group_by(grp, M.meter_category, M.new_meter_type).order_by(grp).all()
 
-        q_tr, _ = self._mj_dashboard_base_query(filters)
-        pv = M.period_value
-        trend_rows = q_tr.with_entities(
-            pv.label("period_value"),
-            self._mj_weighted_stage(M.inventory_to_store, w, "inventory_to_store"),
-            self._mj_weighted_stage(M.store_to_agency, w, "store_to_agency"),
-            self._mj_weighted_stage(M.agency_to_meter_installation, w, "agency_to_meter_installation"),
-            self._mj_weighted_stage(M.meter_installation_to_sat, w, "meter_installation_to_sat"),
-            self._mj_weighted_stage(M.sat_to_invoice, w, "sat_to_invoice"),
-            self._mj_weighted_stage(M.invoice_to_revenue, w, "invoice_to_revenue"),
-            self._mj_weighted_stage(M.total_journey, w, "total_journey"),
-            func.coalesce(func.sum(w), 0).label("meter_count"),
-        ).group_by(pv).order_by(self._period_value_as_date(M, duration).asc()).all()
-        trend = [self._mj_format_trend_row(r._mapping) for r in trend_rows]
+        comparison_map: Dict[str, Dict[str, Any]] = {}
+        comp_total_num: Dict[str, Dict[str, float]] = {}
+        comp_total_den: Dict[str, Dict[str, int]] = {}
 
-        return {"summary": summary, "trend": trend, "comparison": comparison}
+        for r in cmp_rows:
+            m = r._mapping
+            label = str(m["label"]).strip() if m["label"] else "Unknown"
+            key = _sub_key(m["meter_category"], m["new_meter_type"])
+            if not key:
+                continue
 
-    def _mj_format_summary_row(self, row) -> Dict[str, Any]:
+            if label not in comparison_map:
+                comparison_map[label] = {"label": label}
+                comparison_map[label].update({c: _empty_stage_bucket() for c in _STAGE_COLS})
+                comparison_map[label]["meter_count"] = _empty_count_bucket()
+                comp_total_num[label] = {c: 0.0 for c in _STAGE_COLS}
+                comp_total_den[label] = {c: 0 for c in _STAGE_COLS}
+
+            target = comparison_map[label]
+            mc = int(m["meter_count"] or 0)
+            if key in target["meter_count"]:
+                target["meter_count"][key] += mc
+            target["meter_count"]["total"] += mc
+
+            for c in _STAGE_COLS:
+                raw = m[c]
+                if raw is not None:
+                    target[c][key] = self._mj_whole_days(raw)
+                    comp_total_num[label][c] += float(raw) * mc
+                    comp_total_den[label][c] += mc
+
+        for label, target in comparison_map.items():
+            for c in _STAGE_COLS:
+                den = comp_total_den[label][c]
+                target[c]["total"] = self._mj_whole_days(
+                    comp_total_num[label][c] / den if den else None
+                )
+
+        comparison = sorted(comparison_map.values(), key=lambda x: x["label"])
+        return {"summary": summary, "comparison": comparison}
+
+    def _mj_format_flat_row(self, row, stage_cols) -> Dict[str, Any]:
+        """Format a single aggregation row with flat integer stage values."""
         if not row:
-            return {
-                "inventory_to_store": None,
-                "store_to_agency": None,
-                "agency_to_meter_installation": None,
-                "meter_installation_to_sat": None,
-                "sat_to_invoice": None,
-                "invoice_to_revenue": None,
-                "total_journey": None,
-                "meter_count": 0,
-            }
-        return {
-            "inventory_to_store": self._mj_whole_days(row["inventory_to_store"]),
-            "store_to_agency": self._mj_whole_days(row["store_to_agency"]),
-            "agency_to_meter_installation": self._mj_whole_days(row["agency_to_meter_installation"]),
-            "meter_installation_to_sat": self._mj_whole_days(row["meter_installation_to_sat"]),
-            "sat_to_invoice": self._mj_whole_days(row["sat_to_invoice"]),
-            "invoice_to_revenue": self._mj_whole_days(row["invoice_to_revenue"]),
-            "total_journey": self._mj_whole_days(row["total_journey"]),
-            "meter_count": int(row["meter_count"] or 0),
-        }
-
-    def _mj_format_trend_row(self, row) -> Dict[str, Any]:
-        return {
-            "period_value": str(row["period_value"] or ""),
-            "inventory_to_store": self._mj_whole_days(row["inventory_to_store"]),
-            "store_to_agency": self._mj_whole_days(row["store_to_agency"]),
-            "agency_to_meter_installation": self._mj_whole_days(row["agency_to_meter_installation"]),
-            "meter_installation_to_sat": self._mj_whole_days(row["meter_installation_to_sat"]),
-            "sat_to_invoice": self._mj_whole_days(row["sat_to_invoice"]),
-            "invoice_to_revenue": self._mj_whole_days(row["invoice_to_revenue"]),
-            "total_journey": self._mj_whole_days(row["total_journey"]),
-            "meter_count": int(row["meter_count"] or 0),
-        }
-
-    def _mj_format_comparison_row(self, row) -> Dict[str, Any]:
-        label = row["label"]
-        if label is not None:
-            label = str(label).strip()
-        else:
-            label = "Unknown"
-        return {
-            "label": label,
-            "inventory_to_store": self._mj_whole_days(row["inventory_to_store"]),
-            "store_to_agency": self._mj_whole_days(row["store_to_agency"]),
-            "agency_to_meter_installation": self._mj_whole_days(row["agency_to_meter_installation"]),
-            "meter_installation_to_sat": self._mj_whole_days(row["meter_installation_to_sat"]),
-            "sat_to_invoice": self._mj_whole_days(row["sat_to_invoice"]),
-            "invoice_to_revenue": self._mj_whole_days(row["invoice_to_revenue"]),
-            "total_journey": self._mj_whole_days(row["total_journey"]),
-            "meter_count": int(row["meter_count"] or 0),
-        }
+            result = {c: None for c in stage_cols}
+            result["meter_count"] = 0
+            return result
+        result = {c: self._mj_whole_days(row[c]) for c in stage_cols}
+        result["meter_count"] = int(row["meter_count"] or 0)
+        return result
 
     def _meter_stage_base_query(self, filters: Dict[str, Any]):
         """Filter ``sql_meter_current_stage`` for project/category/geo (no period columns on this table)."""
@@ -1627,50 +1863,246 @@ class SQLAlchemyMIRepository(IMIRepository):
             q = q.filter(func.upper(func.trim(M.meter_category)).in_(list(category_map.values())))
         return q
 
+    # KPI 10 — "Pending PMPM Collection" funnel fields and the corresponding
+    # pre-aggregated columns on ``sql_meter_current_stage`` (populated by the ETL
+    # in ``execute_kpi_10_meter_stage``).
+    _METER_STAGE_FIELDS = ["inventory", "installed", "sat_done", "invoice_done"]
+    _METER_STAGE_COLS = [
+        "pending_inventory",
+        "pending_installed",
+        "pending_sat_done",
+        "pending_invoice_done",
+    ]
+
+    # KPI 12 — Revenue Realized (same four column names as ``sql_revenue_realized``)
+    _REVENUE_REALIZED_METRIC_KEYS = (
+        "total_lumpsum_invoice",
+        "total_pmpm_invoice",
+        "total_lumpsum_collection",
+        "total_pmpm_collection",
+    )
+
+    def _revenue_realized_base_query(self, filters: Dict[str, Any]):
+        """Filter ``sql_revenue_realized`` for project/category/geo/duration (KPI-12)."""
+        R = RevenueRealized
+        skip = {
+            "duration", "period", "level", "category", "project",
+            "start_date", "end_date", "mi_usecase", "limit", "offset",
+        }
+        fd = {k: v for k, v in filters.items() if k not in skip}
+        q = self.session.query(R)
+        q = self._apply_filters(q, R, fd)
+
+        project = str(filters.get("project") or "all").lower()
+        if project == "all" or not project:
+            q = q.filter(func.upper(func.trim(R.project)).in_(["AGRA", "KASHI", "TRIVENI"]))
+        else:
+            q = q.filter(func.upper(func.trim(R.project)) == project.upper())
+
+        duration = (filters.get("duration") or filters.get("period") or "all").lower()
+        if duration != "all":
+            q = q.filter(R.period_type == duration)
+
+        category = str(filters.get("category") or "total").lower()
+        category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT"}
+        meter_category = category_map.get(category)
+        if meter_category:
+            q = q.filter(func.upper(func.trim(R.meter_category)) == meter_category)
+        else:
+            q = q.filter(func.upper(func.trim(R.meter_category)).in_(list(category_map.values())))
+        return q
+
+    def _revenue_realized_flat(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        """Flat ``{summary, comparison}`` for ``category=feeder|dt`` (KPI 12)."""
+        R = RevenueRealized
+        q = self._revenue_realized_base_query(filters)
+
+        totals = q.with_entities(
+            func.coalesce(func.sum(R.total_lumpsum_invoice), 0),
+            func.coalesce(func.sum(R.total_pmpm_invoice), 0),
+            func.coalesce(func.sum(R.total_lumpsum_collection), 0),
+            func.coalesce(func.sum(R.total_pmpm_collection), 0),
+        ).first()
+        t_li, t_pi, t_lc, t_pc = (
+            [int(x or 0) for x in totals] if totals else [0, 0, 0, 0]
+        )
+        summary = {
+            "total_lumpsum_invoice": t_li,
+            "total_pmpm_invoice": t_pi,
+            "total_lumpsum_collection": t_lc,
+            "total_pmpm_collection": t_pc,
+        }
+
+        project = str(filters.get("project") or "all").lower()
+        level = (filters.get("level") or "discom").lower()
+        grp = self._mj_comparison_group_expr(R, level, project)
+
+        comp_rows = q.with_entities(
+            grp.label("label"),
+            func.coalesce(func.sum(R.total_lumpsum_invoice), 0).label("total_lumpsum_invoice"),
+            func.coalesce(func.sum(R.total_pmpm_invoice), 0).label("total_pmpm_invoice"),
+            func.coalesce(func.sum(R.total_lumpsum_collection), 0).label("total_lumpsum_collection"),
+            func.coalesce(func.sum(R.total_pmpm_collection), 0).label("total_pmpm_collection"),
+        ).group_by("label").order_by("label").all()
+
+        comparison = [
+            {
+                "label": str(row.label or "Unknown").strip(),
+                "total_lumpsum_invoice": int(row.total_lumpsum_invoice or 0),
+                "total_pmpm_invoice": int(row.total_pmpm_invoice or 0),
+                "total_lumpsum_collection": int(row.total_lumpsum_collection or 0),
+                "total_pmpm_collection": int(row.total_pmpm_collection or 0),
+            }
+            for row in comp_rows
+        ]
+
+        return {"summary": summary, "comparison": comparison}
+
+    def _revenue_realized_nested(
+        self,
+        filters: Dict[str, Any],
+        sub_keys: List[str],
+        bucket_fn,
+    ) -> Dict[str, Any]:
+        """
+        Nested ``{summary, comparison}`` for KPI 12: each metric is
+        ``{<sub_key>: int, ..., "total": int}``.
+        """
+        R = RevenueRealized
+        q = self._revenue_realized_base_query(filters)
+
+        def _empty_field_bucket() -> Dict[str, int]:
+            return {k: 0 for k in sub_keys + ["total"]}
+
+        s_rows = q.with_entities(
+            R.meter_category,
+            R.new_meter_type,
+            func.coalesce(func.sum(R.total_lumpsum_invoice), 0).label("total_lumpsum_invoice"),
+            func.coalesce(func.sum(R.total_pmpm_invoice), 0).label("total_pmpm_invoice"),
+            func.coalesce(func.sum(R.total_lumpsum_collection), 0).label("total_lumpsum_collection"),
+            func.coalesce(func.sum(R.total_pmpm_collection), 0).label("total_pmpm_collection"),
+        ).group_by(R.meter_category, R.new_meter_type).all()
+
+        summary: Dict[str, Dict[str, int]] = {
+            k: _empty_field_bucket() for k in self._REVENUE_REALIZED_METRIC_KEYS
+        }
+
+        for row in s_rows:
+            bucket = bucket_fn(row.meter_category, row.new_meter_type)
+            if not bucket or bucket not in sub_keys:
+                continue
+            for field in self._REVENUE_REALIZED_METRIC_KEYS:
+                val = int(getattr(row, field) or 0)
+                if val == 0:
+                    continue
+                summary[field][bucket] += val
+                summary[field]["total"] += val
+
+        project = str(filters.get("project") or "all").lower()
+        level = (filters.get("level") or "discom").lower()
+        grp = self._mj_comparison_group_expr(R, level, project)
+
+        c_rows = q.with_entities(
+            grp.label("label"),
+            R.meter_category,
+            R.new_meter_type,
+            func.coalesce(func.sum(R.total_lumpsum_invoice), 0).label("total_lumpsum_invoice"),
+            func.coalesce(func.sum(R.total_pmpm_invoice), 0).label("total_pmpm_invoice"),
+            func.coalesce(func.sum(R.total_lumpsum_collection), 0).label("total_lumpsum_collection"),
+            func.coalesce(func.sum(R.total_pmpm_collection), 0).label("total_pmpm_collection"),
+        ).group_by(grp, R.meter_category, R.new_meter_type).order_by(grp).all()
+
+        comparison_map: Dict[str, Dict[str, Any]] = {}
+        for row in c_rows:
+            label = str(row.label or "Unknown").strip()
+            bucket = bucket_fn(row.meter_category, row.new_meter_type)
+            if not bucket or bucket not in sub_keys:
+                continue
+
+            entry = comparison_map.get(label)
+            if entry is None:
+                entry = {"label": label}
+                for f in self._REVENUE_REALIZED_METRIC_KEYS:
+                    entry[f] = _empty_field_bucket()
+                comparison_map[label] = entry
+
+            for f in self._REVENUE_REALIZED_METRIC_KEYS:
+                val = int(getattr(row, f) or 0)
+                if val == 0:
+                    continue
+                entry[f][bucket] += val
+                entry[f]["total"] += val
+
+        comparison = sorted(comparison_map.values(), key=lambda x: x["label"])
+        return {"summary": summary, "comparison": comparison}
+
     def get_meter_stage_dashboard(self, filters: Dict[str, Any], limit: int, offset: int) -> Dict[str, Any]:
         """
-        Returns pre-aggregated funnel metrics from sql_meter_current_stage.
-        Data is at summary grain (one row per geo×type×category), so distribution is all rows.
+        KPI 10 — Meter Funnel Summary ("Pending PMPM Collection").
+
+        Always returns ``{"summary": ..., "comparison": [...]}`` (KPI-9-style shape).
+        The four funnel fields are ``inventory / installed / sat_done / invoice_done``,
+        each restricted to meters where ``pmpm_collection_date IS NULL``.
+
+        Nesting per ``category``:
+        - ``consumer``  → each field nests by 1PH/3PH/LTCT/HTCT/total.
+        - ``total`` (default / None) → each field nests by CONSUMER/FEEDER/DT/total.
+        - ``feeder`` / ``dt`` → each field is a flat int.
         """
+        category_param = str(filters.get("category") or "total").lower()
+
+        if category_param == "consumer":
+            return self._meter_stage_nested(
+                filters,
+                sub_keys=CONSUMER_SUB_KEYS,
+                bucket_fn=lambda cat, mt: CONSUMER_SUBCATEGORY_MAP.get(mt),
+            )
+
+        if category_param in ("total", "all"):
+            def _cat_bucket(cat, _mt):
+                up = (cat or "").strip().upper()
+                return up if up in CATEGORY_KEYS else None
+
+            return self._meter_stage_nested(
+                filters,
+                sub_keys=CATEGORY_KEYS,
+                bucket_fn=_cat_bucket,
+            )
+
+        # feeder / dt → flat
+        return self._meter_stage_flat(filters)
+
+    def _meter_stage_flat(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+        """Flat ``{summary, comparison}`` for ``category=feeder|dt``."""
         M = MeterCurrentStage
         q = self._meter_stage_base_query(filters)
 
-        # Totals across all filtered rows
         totals = q.with_entities(
-            func.sum(M.inventory),
-            func.sum(M.installed),
-            func.sum(M.sat_done),
-            func.sum(M.revenue_collected),
+            func.coalesce(func.sum(M.pending_inventory), 0),
+            func.coalesce(func.sum(M.pending_installed), 0),
+            func.coalesce(func.sum(M.pending_sat_done), 0),
+            func.coalesce(func.sum(M.pending_invoice_done), 0),
         ).first()
-        total_inv, total_inst, total_sat, total_rev = [int(x or 0) for x in totals] if totals else [0, 0, 0, 0]
+        t_inv, t_inst, t_sat, t_inv_done = (
+            [int(x or 0) for x in totals] if totals else [0, 0, 0, 0]
+        )
+        summary = {
+            "inventory": t_inv,
+            "installed": t_inst,
+            "sat_done": t_sat,
+            "invoice_done": t_inv_done,
+        }
 
-        # Category Breakdown (nested by meter_category → new_meter_type)
-        cat_rows = q.with_entities(
-            M.meter_category,
-            M.new_meter_type,
-            func.sum(M.inventory),
-            func.sum(M.installed),
-            func.sum(M.sat_done),
-            func.sum(M.revenue_collected),
-        ).group_by(M.meter_category, M.new_meter_type).all()
-        category_breakdown = self._format_funnel_breakdown(cat_rows, ["inventory", "installed", "sat_done", "revenue_collected"])
-
-        # Comparison by level (discom/zone/circle/etc.)
-        project = str(filters.get("project") or "all").lower()
-        level = (filters.get("level") or "discom").lower()
-        grp = self._mj_comparison_group_expr(M, level, project)
-
-        # Comparison by level (discom/zone/circle/etc.) — aggregated across all categories
         project = str(filters.get("project") or "all").lower()
         level = (filters.get("level") or "discom").lower()
         grp = self._mj_comparison_group_expr(M, level, project)
 
         comp_rows = q.with_entities(
             grp.label("label"),
-            func.sum(M.inventory).label("inventory"),
-            func.sum(M.installed).label("installed"),
-            func.sum(M.sat_done).label("sat_done"),
-            func.sum(M.revenue_collected).label("revenue_collected"),
+            func.coalesce(func.sum(M.pending_inventory), 0).label("inventory"),
+            func.coalesce(func.sum(M.pending_installed), 0).label("installed"),
+            func.coalesce(func.sum(M.pending_sat_done), 0).label("sat_done"),
+            func.coalesce(func.sum(M.pending_invoice_done), 0).label("invoice_done"),
         ).group_by("label").order_by("label").all()
 
         comparison = [
@@ -1679,19 +2111,96 @@ class SQLAlchemyMIRepository(IMIRepository):
                 "inventory": int(row.inventory or 0),
                 "installed": int(row.installed or 0),
                 "sat_done": int(row.sat_done or 0),
-                "revenue_collected": int(row.revenue_collected or 0),
+                "invoice_done": int(row.invoice_done or 0),
             }
             for row in comp_rows
         ]
 
-        return {
-            "inventory": total_inv,
-            "installed": total_inst,
-            "sat_done": total_sat,
-            "revenue_collected": total_rev,
-            "category_breakdown": category_breakdown,
-            "comparison": comparison,
+        return {"summary": summary, "comparison": comparison}
+
+    def _meter_stage_nested(
+        self,
+        filters: Dict[str, Any],
+        sub_keys: List[str],
+        bucket_fn,
+    ) -> Dict[str, Any]:
+        """
+        Nested ``{summary, comparison}`` where each of the 4 funnel fields is a
+        ``{<sub_key>: int, ..., "total": int}`` dict.
+
+        ``sub_keys`` and ``bucket_fn`` parameterise the nesting:
+        - consumer: sub_keys = CONSUMER_SUB_KEYS, bucket = CONSUMER_SUBCATEGORY_MAP.get(meter_type)
+        - total:    sub_keys = CATEGORY_KEYS,    bucket = upper(meter_category) if in CATEGORY_KEYS
+        """
+        M = MeterCurrentStage
+        q = self._meter_stage_base_query(filters)
+
+        def _empty_field_bucket() -> Dict[str, int]:
+            return {k: 0 for k in sub_keys + ["total"]}
+
+        # ── Summary: group by (meter_category, new_meter_type) ────────────
+        s_rows = q.with_entities(
+            M.meter_category,
+            M.new_meter_type,
+            func.coalesce(func.sum(M.pending_inventory), 0).label("inventory"),
+            func.coalesce(func.sum(M.pending_installed), 0).label("installed"),
+            func.coalesce(func.sum(M.pending_sat_done), 0).label("sat_done"),
+            func.coalesce(func.sum(M.pending_invoice_done), 0).label("invoice_done"),
+        ).group_by(M.meter_category, M.new_meter_type).all()
+
+        summary: Dict[str, Dict[str, int]] = {
+            f: _empty_field_bucket() for f in self._METER_STAGE_FIELDS
         }
+
+        for row in s_rows:
+            bucket = bucket_fn(row.meter_category, row.new_meter_type)
+            if not bucket or bucket not in sub_keys:
+                continue
+            for f in self._METER_STAGE_FIELDS:
+                val = int(getattr(row, f) or 0)
+                if val == 0:
+                    continue
+                summary[f][bucket] += val
+                summary[f]["total"] += val
+
+        # ── Comparison: group by (level_label, meter_category, new_meter_type) ─
+        project = str(filters.get("project") or "all").lower()
+        level = (filters.get("level") or "discom").lower()
+        grp = self._mj_comparison_group_expr(M, level, project)
+
+        c_rows = q.with_entities(
+            grp.label("label"),
+            M.meter_category,
+            M.new_meter_type,
+            func.coalesce(func.sum(M.pending_inventory), 0).label("inventory"),
+            func.coalesce(func.sum(M.pending_installed), 0).label("installed"),
+            func.coalesce(func.sum(M.pending_sat_done), 0).label("sat_done"),
+            func.coalesce(func.sum(M.pending_invoice_done), 0).label("invoice_done"),
+        ).group_by(grp, M.meter_category, M.new_meter_type).order_by(grp).all()
+
+        comparison_map: Dict[str, Dict[str, Any]] = {}
+        for row in c_rows:
+            label = str(row.label or "Unknown").strip()
+            bucket = bucket_fn(row.meter_category, row.new_meter_type)
+            if not bucket or bucket not in sub_keys:
+                continue
+
+            entry = comparison_map.get(label)
+            if entry is None:
+                entry = {"label": label}
+                for f in self._METER_STAGE_FIELDS:
+                    entry[f] = _empty_field_bucket()
+                comparison_map[label] = entry
+
+            for f in self._METER_STAGE_FIELDS:
+                val = int(getattr(row, f) or 0)
+                if val == 0:
+                    continue
+                entry[f][bucket] += val
+                entry[f]["total"] += val
+
+        comparison = sorted(comparison_map.values(), key=lambda x: x["label"])
+        return {"summary": summary, "comparison": comparison}
 
     def save_mi_progress(self, entities: List[MIProgressEntity]):
         models = [
@@ -1839,7 +2348,7 @@ class SQLAlchemyMIRepository(IMIRepository):
         
         project = str(filters.get("project") or "all").lower()
         level = (filters.get("level") or "discom").lower()
-        duration = (filters.get("duration") or filters.get("period") or "monthly").lower()
+        category_param = (filters.get("category") or "total").lower()
 
         base_filters = dict(filters)
         start_date = base_filters.pop("start_date", None)
@@ -1849,12 +2358,10 @@ class SQLAlchemyMIRepository(IMIRepository):
         base_filters.pop("level", None)
         base_filters.pop("project", None)
         
-        # Handle category alias
         if "category" in base_filters:
-            if not base_filters.get("meter_category"):
-                base_filters["meter_category"] = base_filters.pop("category")
-            else:
-                base_filters.pop("category")
+            cat_val = base_filters.pop("category")
+            if not base_filters.get("meter_category") and str(cat_val).lower() in ("consumer", "feeder", "dt"):
+                base_filters["meter_category"] = str(cat_val).upper()
         
         q = self._apply_filters(q, MIvsSATvsInvoice, base_filters)
 
@@ -1868,16 +2375,6 @@ class SQLAlchemyMIRepository(IMIRepository):
         if end_date:
             q = q.filter(func.to_date(MIvsSATvsInvoice.period_value, "DD-MM-YY") <= func.to_date(str(end_date), "YYYY-MM-DD"))
             
-        p_rows = q.with_entities(
-            MIvsSATvsInvoice.period_value,
-            MIvsSATvsInvoice.meter_category,
-            MIvsSATvsInvoice.new_meter_type,
-            func.sum(MIvsSATvsInvoice.total_mi),
-            func.sum(MIvsSATvsInvoice.total_sat),
-            func.sum(MIvsSATvsInvoice.total_lumpsum_invoice),
-            func.sum(MIvsSATvsInvoice.total_pmpm_invoice)
-        ).group_by(MIvsSATvsInvoice.period_value, MIvsSATvsInvoice.meter_category, MIvsSATvsInvoice.new_meter_type).all()
-        
         c_rows = q.with_entities(
             MIvsSATvsInvoice.meter_category,
             MIvsSATvsInvoice.new_meter_type,
@@ -1905,165 +2402,151 @@ class SQLAlchemyMIRepository(IMIRepository):
         
         cmp_rows = q.with_entities(
             group_expr.label("label"),
+            MIvsSATvsInvoice.meter_category,
+            MIvsSATvsInvoice.new_meter_type,
             func.sum(MIvsSATvsInvoice.total_mi),
             func.sum(MIvsSATvsInvoice.total_sat),
             func.sum(MIvsSATvsInvoice.total_lumpsum_invoice),
             func.sum(MIvsSATvsInvoice.total_pmpm_invoice)
-        ).group_by(group_expr).order_by("label").all()
+        ).group_by(group_expr, MIvsSATvsInvoice.meter_category, MIvsSATvsInvoice.new_meter_type).order_by("label").all()
         
-        comparison = []
-        for r in cmp_rows:
-            comparison.append({
-                "label": str(r[0] or "Unknown").strip(),
-                "total_mi": int(r[1] or 0),
-                "total_sat": int(r[2] or 0),
-                "total_lumpsum_invoice": int(r[3] or 0),
-                "total_pmpm_invoice": int(r[4] or 0)
-            })
-            
-        vals = ["mi", "sat", "lumpsum_invoice", "pmpm_invoice"]
-        
-        from datetime import datetime
-        def normalize_pb(pb):
-            out = {}
-            for k, v in pb.items():
-                try:
-                    dt = datetime.strptime(k, "%d-%m-%y")
-                    norm_k = dt.strftime("%Y-%m-%d")
-                except:
-                    norm_k = k
-                out[norm_k] = v
-            return out
+        def _empty_bucket():
+            if category_param == "total":
+                return {"CONSUMER": 0, "FEEDER": 0, "DT": 0, "total": 0}
+            elif category_param == "consumer":
+                return {
+                    "1PH-Consumer_meter": 0, "3PH-Consumer_meter": 0,
+                    "LTCT-Consumer_meter": 0, "HTCT-Consumer_meter": 0, "total": 0
+                }
+            return 0  # for feeder/dt
 
-        pb_raw = self._format_nested_breakdown(p_rows, vals)
-        pb = normalize_pb(pb_raw)
+        def _category_key(cat, mtype):
+            cat = str(cat or "").upper().strip()
+            if category_param == "total":
+                return cat if cat in ("CONSUMER", "FEEDER", "DT") else None
+            elif category_param == "consumer":
+                if cat == "CONSUMER":
+                    m = str(mtype or "").upper().strip()
+                    if "1PH" in m: return "1PH-Consumer_meter"
+                    if "3PH" in m: return "3PH-Consumer_meter"
+                    if "LTCT" in m: return "LTCT-Consumer_meter"
+                    if "HTCT" in m: return "HTCT-Consumer_meter"
+            return None
+
+        summary = {
+            "total_mi": _empty_bucket(),
+            "total_sat": _empty_bucket(),
+            "total_lumpsum_invoice": _empty_bucket(),
+            "total_pmpm_invoice": _empty_bucket()
+        }
+
+        for r in c_rows:
+            cat = r[0]
+            mtype = r[1]
+            t_mi = int(r[2] or 0)
+            t_sat = int(r[3] or 0)
+            t_li = int(r[4] or 0)
+            t_pi = int(r[5] or 0)
+
+            if category_param in ("feeder", "dt"):
+                summary["total_mi"] += t_mi
+                summary["total_sat"] += t_sat
+                summary["total_lumpsum_invoice"] += t_li
+                summary["total_pmpm_invoice"] += t_pi
+            else:
+                key = _category_key(cat, mtype)
+                if key:
+                    for b_name, b_val in [
+                        ("total_mi", t_mi),
+                        ("total_sat", t_sat),
+                        ("total_lumpsum_invoice", t_li),
+                        ("total_pmpm_invoice", t_pi)
+                    ]:
+                        if key in summary[b_name]:
+                            summary[b_name][key] += b_val
+                        summary[b_name]["total"] += b_val
+
+        comparison_map = {}
+        for r in cmp_rows:
+            label = str(r[0] or "Unknown").strip()
+            cat = r[1]
+            mtype = r[2]
+            t_mi = int(r[3] or 0)
+            t_sat = int(r[4] or 0)
+            t_li = int(r[5] or 0)
+            t_pi = int(r[6] or 0)
+
+            if label not in comparison_map:
+                comparison_map[label] = {
+                    "label": label,
+                    "total_mi": _empty_bucket(),
+                    "total_sat": _empty_bucket(),
+                    "total_lumpsum_invoice": _empty_bucket(),
+                    "total_pmpm_invoice": _empty_bucket()
+                }
+            
+            target = comparison_map[label]
+
+            if category_param in ("feeder", "dt"):
+                target["total_mi"] += t_mi
+                target["total_sat"] += t_sat
+                target["total_lumpsum_invoice"] += t_li
+                target["total_pmpm_invoice"] += t_pi
+            else:
+                key = _category_key(cat, mtype)
+                if key:
+                    for b_name, b_val in [
+                        ("total_mi", t_mi),
+                        ("total_sat", t_sat),
+                        ("total_lumpsum_invoice", t_li),
+                        ("total_pmpm_invoice", t_pi)
+                    ]:
+                        if key in target[b_name]:
+                            target[b_name][key] += b_val
+                        target[b_name]["total"] += b_val
+
+        comparison = [v for k, v in sorted(comparison_map.items())]
 
         return {
-            "total_mi": int(sum(r[2] for r in c_rows) or 0),
-            "total_sat": int(sum(r[3] for r in c_rows) or 0),
-            "total_lumpsum_invoice": int(sum(r[4] for r in c_rows) or 0),
-            "total_pmpm_invoice": int(sum(r[5] for r in c_rows) or 0),
-            "period_breakdown": pb,
-            "category_breakdown": self._format_nested_breakdown(c_rows, vals),
+            "summary": summary,
             "comparison": comparison
         }
 
 
     def get_revenue_realized_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
-        """KPI 12: Revenue Realized summary."""
-        q = self.session.query(RevenueRealized)
+        """
+        KPI 12: Revenue Realized summary — KPI-10-style ``{summary, comparison}``.
 
-        # Extract special filter params
-        project = str(filters.get("project") or "all").lower()
-        duration = (filters.get("duration") or filters.get("period") or "all").lower()
-        level = (filters.get("level") or "discom").lower()
+        Nesting per ``category``:
+        - ``consumer`` → each of the four totals nests by consumer meter-type buckets + ``total``.
+        - ``total`` / ``all`` → each field nests by CONSUMER / FEEDER / DT + ``total``.
+        - ``feeder`` / ``dt`` → each field is a flat int.
+        """
+        category_param = str(filters.get("category") or "total").lower()
 
-        # Base filters exclude special keys
-        base_filters = {k: v for k, v in filters.items() if k not in ("project", "start_date", "end_date", "duration", "level", "period", "period_type")}
-        q = self._apply_filters(q, RevenueRealized, base_filters)
-
-        # Project filter
-        default_projects = ["AGRA", "KASHI", "TRIVENI"]
-        if project == "all" or not project:
-            q = q.filter(func.upper(func.trim(RevenueRealized.project)).in_(default_projects))
-        else:
-            q = q.filter(func.upper(func.trim(RevenueRealized.project)) == project.upper())
-
-        # Duration (period_type) filter
-        if duration != "all":
-            q = q.filter(RevenueRealized.period_type == duration)
-
-        # Value keys for breakdowns
-        VALUE_KEYS = ['lumpsum_invoice', 'pmpm_invoice', 'lumpsum_collection', 'pmpm_collection']
-
-        # Period breakdown query
-        p_rows = q.with_entities(
-            RevenueRealized.period_value,
-            RevenueRealized.meter_category,
-            RevenueRealized.new_meter_type,
-            func.sum(RevenueRealized.total_lumpsum_invoice).label('lumpsum_invoice'),
-            func.sum(RevenueRealized.total_pmpm_invoice).label('pmpm_invoice'),
-            func.sum(RevenueRealized.total_lumpsum_collection).label('lumpsum_collection'),
-            func.sum(RevenueRealized.total_pmpm_collection).label('pmpm_collection'),
-        ).group_by(
-            RevenueRealized.period_value,
-            RevenueRealized.meter_category,
-            RevenueRealized.new_meter_type
-        ).all()
-
-        # Category breakdown query
-        c_rows = q.with_entities(
-            RevenueRealized.meter_category,
-            RevenueRealized.new_meter_type,
-            func.sum(RevenueRealized.total_lumpsum_invoice).label('lumpsum_invoice'),
-            func.sum(RevenueRealized.total_pmpm_invoice).label('pmpm_invoice'),
-            func.sum(RevenueRealized.total_lumpsum_collection).label('lumpsum_collection'),
-            func.sum(RevenueRealized.total_pmpm_collection).label('pmpm_collection'),
-        ).group_by(
-            RevenueRealized.meter_category,
-            RevenueRealized.new_meter_type
-        ).all()
-
-        # Compute totals from category rows
-        total_lumpsum_invoice = sum(r.lumpsum_invoice or 0 for r in c_rows)
-        total_pmpm_invoice = sum(r.pmpm_invoice or 0 for r in c_rows)
-        total_lumpsum_collection = sum(r.lumpsum_collection or 0 for r in c_rows)
-        total_pmpm_collection = sum(r.pmpm_collection or 0 for r in c_rows)
-
-        # Build comparison grouped by level
-        if level == "discom" and project == "all":
-            group_expr = func.upper(func.trim(RevenueRealized.project))
-        else:
-            if not hasattr(RevenueRealized, level):
-                level = "discom"
-            level_col = getattr(RevenueRealized, level)
-            if project == "all" and level != "discom":
-                group_expr = func.concat(
-                    func.upper(func.trim(RevenueRealized.project)),
-                    " | ",
-                    func.coalesce(level_col, "Unknown"),
-                )
-            else:
-                group_expr = func.coalesce(level_col, "Unknown")
-
-        cmp_rows = (
-            q.with_entities(
-                group_expr.label("label"),
-                func.sum(RevenueRealized.total_lumpsum_invoice).label('lumpsum_invoice'),
-                func.sum(RevenueRealized.total_pmpm_invoice).label('pmpm_invoice'),
-                func.sum(RevenueRealized.total_lumpsum_collection).label('lumpsum_collection'),
-                func.sum(RevenueRealized.total_pmpm_collection).label('pmpm_collection'),
+        if category_param == "consumer":
+            return self._revenue_realized_nested(
+                filters,
+                sub_keys=CONSUMER_SUB_KEYS,
+                bucket_fn=lambda cat, mt: CONSUMER_SUBCATEGORY_MAP.get(mt),
             )
-            .group_by(group_expr)
-            .order_by("label")
-            .all()
-        )
 
-        comparison = []
-        for r in cmp_rows:
-            comparison.append({
-                "label": str(r.label) if r.label is not None else "Unknown",
-                "count": {
-                    "lumpsum_invoice": int(r.lumpsum_invoice or 0),
-                    "pmpm_invoice": int(r.pmpm_invoice or 0),
-                    "lumpsum_collection": int(r.lumpsum_collection or 0),
-                    "pmpm_collection": int(r.pmpm_collection or 0),
-                }
-            })
+        if category_param in ("total", "all"):
+            def _cat_bucket(cat, _mt):
+                up = (cat or "").strip().upper()
+                return up if up in CATEGORY_KEYS else None
 
-        return {
-            "total_lumpsum_invoice": int(total_lumpsum_invoice),
-            "total_pmpm_invoice": int(total_pmpm_invoice),
-            "total_lumpsum_collection": int(total_lumpsum_collection),
-            "total_pmpm_collection": int(total_pmpm_collection),
-            "category_breakdown": self._format_nested_breakdown(c_rows, VALUE_KEYS),
-            "period_breakdown": self._format_nested_breakdown(p_rows, VALUE_KEYS),
-            "comparison": comparison,
-        }
+            return self._revenue_realized_nested(
+                filters,
+                sub_keys=CATEGORY_KEYS,
+                bucket_fn=_cat_bucket,
+            )
+
+        return self._revenue_realized_flat(filters)
 
 
     def get_revenue_ageing_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
-        """KPI 13: Revenue Ageing summary (category + period breakdown + comparison by cluster)."""
+        """KPI 13: Revenue Ageing — KPI-6-style ``summary`` + ``comparison`` (no period/category tree breakdown)."""
         duration = (filters.get("duration") or filters.get("period") or "as_on").lower()
         if duration in ("as", "ason", "snapshot"):
             duration = "as_on"
@@ -2073,6 +2556,15 @@ class SQLAlchemyMIRepository(IMIRepository):
         category_map = {"consumer": "CONSUMER", "feeder": "FEEDER", "dt": "DT", "dtr": "DT"}
         cat_raw = (filters.get("category") or "").strip().lower()
         meter_cat_mapped = category_map.get(cat_raw) if cat_raw else None
+
+        raw_cat_scope = (filters.get("category") or filters.get("meter_category") or "total")
+        category_param = str(raw_cat_scope).strip().lower()
+        if category_param in ("all", "total", ""):
+            category_param = "total"
+        elif category_param == "dtr":
+            category_param = "dt"
+        elif category_param not in ("consumer", "feeder", "dt"):
+            category_param = "total"
 
         base_filters = dict(filters)
         start_date = base_filters.pop("start_date", None)
@@ -2108,20 +2600,6 @@ class SQLAlchemyMIRepository(IMIRepository):
         if end_date:
             q = q.filter(pv_date <= func.to_date(end_date, "YYYY-MM-DD"))
 
-        p_rows = q.with_entities(
-            RevenueAgeing.period_value,
-            RevenueAgeing.meter_category,
-            RevenueAgeing.new_meter_type,
-            func.sum(RevenueAgeing.age_0_30),
-            func.sum(RevenueAgeing.age_31_60),
-            func.sum(RevenueAgeing.age_61_90),
-            func.sum(RevenueAgeing.age_90_plus),
-        ).group_by(
-            RevenueAgeing.period_value,
-            RevenueAgeing.meter_category,
-            RevenueAgeing.new_meter_type,
-        ).all()
-
         c_rows = q.with_entities(
             RevenueAgeing.meter_category,
             RevenueAgeing.new_meter_type,
@@ -2131,9 +2609,49 @@ class SQLAlchemyMIRepository(IMIRepository):
             func.sum(RevenueAgeing.age_90_plus),
         ).group_by(RevenueAgeing.meter_category, RevenueAgeing.new_meter_type).all()
 
-        vals = ["age_0_30", "age_31_60", "age_61_90", "age_90_plus"]
-        category_breakdown = self._format_nested_breakdown(c_rows, vals)
-        period_breakdown = self._format_nested_breakdown(p_rows, vals)
+        def _empty_bucket():
+            if category_param == "consumer":
+                return {k: 0 for k in CONSUMER_SUB_KEYS + ["total"]}
+            if category_param == "total":
+                return {k: 0 for k in ("CONSUMER", "FEEDER", "DT", "total")}
+            return 0
+
+        def _category_key(row_cat, row_meter_type):
+            cat = str(row_cat).upper() if row_cat else "UNKNOWN"
+            if category_param == "consumer" and cat == "CONSUMER":
+                return CONSUMER_SUBCATEGORY_MAP.get(row_meter_type)
+            if category_param == "total":
+                return cat if cat in CATEGORY_KEYS else None
+            return None
+
+        summary = {
+            "age_0_30": _empty_bucket(),
+            "age_31_60": _empty_bucket(),
+            "age_61_90": _empty_bucket(),
+            "age_90_plus": _empty_bucket(),
+            "total_pending": 0,
+        }
+
+        for r in c_rows:
+            a0, a31, a61, a90 = int(r[2] or 0), int(r[3] or 0), int(r[4] or 0), int(r[5] or 0)
+            summary["total_pending"] += a0 + a31 + a61 + a90
+            if category_param in ("feeder", "dt"):
+                summary["age_0_30"] += a0
+                summary["age_31_60"] += a31
+                summary["age_61_90"] += a61
+                summary["age_90_plus"] += a90
+            else:
+                key = _category_key(r[0], r[1])
+                if key:
+                    for b_name, b_val in (
+                        ("age_0_30", a0),
+                        ("age_31_60", a31),
+                        ("age_61_90", a61),
+                        ("age_90_plus", a90),
+                    ):
+                        if key in summary[b_name]:
+                            summary[b_name][key] += b_val
+                        summary[b_name]["total"] += b_val
 
         if level == "discom" and project == "all":
             group_expr = func.upper(func.trim(RevenueAgeing.project))
@@ -2150,41 +2668,79 @@ class SQLAlchemyMIRepository(IMIRepository):
             else:
                 group_expr = func.coalesce(level_col, "Unknown")
 
-        cmp_rows = (
-            q.with_entities(
-                group_expr.label("label"),
-                func.sum(RevenueAgeing.age_0_30).label("a0"),
-                func.sum(RevenueAgeing.age_31_60).label("a1"),
-                func.sum(RevenueAgeing.age_61_90).label("a2"),
-                func.sum(RevenueAgeing.age_90_plus).label("a3"),
+        if category_param in ("feeder", "dt"):
+            cmp_rows = (
+                q.with_entities(
+                    group_expr.label("label"),
+                    func.sum(RevenueAgeing.age_0_30).label("a0"),
+                    func.sum(RevenueAgeing.age_31_60).label("a1"),
+                    func.sum(RevenueAgeing.age_61_90).label("a2"),
+                    func.sum(RevenueAgeing.age_90_plus).label("a3"),
+                )
+                .group_by(group_expr)
+                .order_by("label")
+                .all()
             )
-            .group_by(group_expr)
-            .order_by("label")
-            .all()
-        )
-
-        comparison = []
-        for r in cmp_rows:
-            a0 = int(r.a0 or 0)
-            a1 = int(r.a1 or 0)
-            a2 = int(r.a2 or 0)
-            a3 = int(r.a3 or 0)
-            comparison.append(
-                {
-                    "label": str(r.label) if r.label is not None else "Unknown",
-                    "age_0_30": a0,
-                    "age_31_60": a1,
-                    "age_61_90": a2,
-                    "age_90_plus": a3,
-                    "total_pending": a0 + a1 + a2 + a3,
-                }
+            comparison = []
+            for r in cmp_rows:
+                a0 = int(r.a0 or 0)
+                a1 = int(r.a1 or 0)
+                a2 = int(r.a2 or 0)
+                a3 = int(r.a3 or 0)
+                comparison.append(
+                    {
+                        "label": str(r.label) if r.label is not None else "Unknown",
+                        "age_0_30": a0,
+                        "age_31_60": a1,
+                        "age_61_90": a2,
+                        "age_90_plus": a3,
+                        "total_pending": a0 + a1 + a2 + a3,
+                    }
+                )
+        else:
+            comp_rows = (
+                q.with_entities(
+                    group_expr.label("label"),
+                    RevenueAgeing.meter_category,
+                    RevenueAgeing.new_meter_type,
+                    func.sum(RevenueAgeing.age_0_30),
+                    func.sum(RevenueAgeing.age_31_60),
+                    func.sum(RevenueAgeing.age_61_90),
+                    func.sum(RevenueAgeing.age_90_plus),
+                )
+                .group_by(group_expr, RevenueAgeing.meter_category, RevenueAgeing.new_meter_type)
+                .order_by("label")
+                .all()
             )
+            comparison_map: Dict[str, Any] = {}
+            for r in comp_rows:
+                label = str(r[0]) if r[0] is not None else "Unknown"
+                a0, a31, a61, a90 = int(r[3] or 0), int(r[4] or 0), int(r[5] or 0), int(r[6] or 0)
+                if label not in comparison_map:
+                    comparison_map[label] = {
+                        "label": label,
+                        "age_0_30": _empty_bucket(),
+                        "age_31_60": _empty_bucket(),
+                        "age_61_90": _empty_bucket(),
+                        "age_90_plus": _empty_bucket(),
+                        "total_pending": 0,
+                    }
+                target = comparison_map[label]
+                target["total_pending"] += a0 + a31 + a61 + a90
+                key = _category_key(r[1], r[2])
+                if key:
+                    for b_name, b_val in (
+                        ("age_0_30", a0),
+                        ("age_31_60", a31),
+                        ("age_61_90", a61),
+                        ("age_90_plus", a90),
+                    ):
+                        if key in target[b_name]:
+                            target[b_name][key] += b_val
+                        target[b_name]["total"] += b_val
+            comparison = sorted(comparison_map.values(), key=lambda x: x["label"])
 
-        return {
-            "category_breakdown": category_breakdown,
-            "period_breakdown": period_breakdown,
-            "comparison": comparison,
-        }
+        return {"summary": summary, "comparison": comparison}
 
     def get_defective_meters_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """KPI 14: Defective Meters summary."""
@@ -2203,22 +2759,20 @@ class SQLAlchemyMIRepository(IMIRepository):
         base_filters.pop("project", None)
         
         # Handle category alias and map to proper meter_category values.
-        # For dt, source data may contain either DT or DTR labels.
         category_map = {"consumer": "CONSUMER", "feeder": "FEEDER"}
-        category_val = (base_filters.pop("category", None) or base_filters.pop("meter_category", None) or "total").lower()
-        
-        # Only set meter_category filter if category_val is specific (not "all" or "total")
-        if category_val in category_map:
-            base_filters["meter_category"] = category_map[category_val]
-        elif category_val == "dt":
+        raw_category = (base_filters.pop("category", None) or base_filters.pop("meter_category", None) or "total").lower()
+        if raw_category in ("all", ""):
+            raw_category = "total"
+            
+        if raw_category in category_map:
+            base_filters["meter_category"] = category_map[raw_category]
+        elif raw_category == "dt":
             base_filters["meter_category"] = None
-        # else: category is "all" or "total" → don't add meter_category filter
         
         q = self._apply_filters(q, DefectiveMeters, base_filters)
-        if category_val == "dt":
+        if raw_category == "dt":
             q = q.filter(func.lower(func.trim(DefectiveMeters.meter_category)).in_(["dt", "dtr"]))
         
-        # Filter by duration → period_type
         q = q.filter(DefectiveMeters.period_type == duration)
         
         if project == "all" or not project:
@@ -2231,6 +2785,22 @@ class SQLAlchemyMIRepository(IMIRepository):
         if end_date:
             q = q.filter(func.to_date(DefectiveMeters.period_value, "DD-MM-YY") <= func.to_date(str(end_date), "YYYY-MM-DD"))
         
+        def _category_key(cat, mtype):
+            cat = str(cat or "UNKNOWN").strip().upper()
+            if raw_category == "consumer":
+                if cat == "CONSUMER":
+                    return CONSUMER_SUBCATEGORY_MAP.get(mtype)
+            elif raw_category == "total":
+                return cat if cat in CATEGORY_KEYS else None
+            return None
+
+        def _empty_bucket():
+            if raw_category == "consumer":
+                return {k: 0 for k in CONSUMER_SUB_KEYS + ["total"]}
+            if raw_category == "total":
+                return {k: 0 for k in ("CONSUMER", "FEEDER", "DT", "total")}
+            return 0
+
         entities = [
             DefectiveMeters.meter_category,
             DefectiveMeters.new_meter_type,
@@ -2241,23 +2811,50 @@ class SQLAlchemyMIRepository(IMIRepository):
         
         c_rows = q.with_entities(*entities).group_by(DefectiveMeters.meter_category, DefectiveMeters.new_meter_type).all()
         
+        summary = {
+            "total_defective": _empty_bucket(),
+            "total_burnt": _empty_bucket(),
+            "total_faulty": _empty_bucket(),
+            "total_others": _empty_bucket()
+        }
+
+        for r in c_rows:
+            burnt = int(r[2] or 0)
+            faulty = int(r[3] or 0)
+            others = int(r[4] or 0)
+            total = burnt + faulty + others
+            
+            if raw_category in ("feeder", "dt"):
+                summary["total_burnt"] += burnt
+                summary["total_faulty"] += faulty
+                summary["total_others"] += others
+                summary["total_defective"] += total
+            else:
+                key = _category_key(r[0], r[1])
+                if key:
+                    for b_name, b_val in (
+                        ("total_burnt", burnt),
+                        ("total_faulty", faulty),
+                        ("total_others", others),
+                        ("total_defective", total)
+                    ):
+                        if key in summary[b_name]:
+                            summary[b_name][key] += b_val
+                        summary[b_name]["total"] += b_val
+
         p_entities = [DefectiveMeters.period_value] + entities
         p_rows = q.with_entities(*p_entities).group_by(DefectiveMeters.period_value, DefectiveMeters.meter_category, DefectiveMeters.new_meter_type).all()
         
-        val_keys = ["meter_burnt", "meter_faulty", "others"]
-        category_breakdown = self._format_nested_breakdown(c_rows, val_keys)
-        
         from datetime import datetime
-        trend_map = {}
+        period_map = {}
         for r in p_rows:
             pv = str(r[0] or "")
-            cat = str(r[1] or 'UNKNOWN').upper()
             burnt = int(r[3] or 0)
             faulty = int(r[4] or 0)
             others = int(r[5] or 0)
             total = burnt + faulty + others
             
-            if pv not in trend_map:
+            if pv not in period_map:
                 try:
                     dt = datetime.strptime(pv, "%d-%m-%y")
                     pv_norm = dt.strftime("%Y-%m-%d")
@@ -2266,21 +2863,35 @@ class SQLAlchemyMIRepository(IMIRepository):
                     pv_norm = pv
                     sort_date = datetime.min.date()
                     
-                trend_map[pv] = {
+                period_map[pv] = {
                     "period_value": pv_norm, 
                     "sort_date": sort_date,
-                    "CONSUMER": 0, "FEEDER": 0, "DT": 0, 
-                    "burnt": 0, "faulty": 0, "others": 0
+                    "total_defective": _empty_bucket(),
+                    "total_burnt": _empty_bucket(),
+                    "total_faulty": _empty_bucket(),
+                    "total_others": _empty_bucket()
                 }
             
-            if cat in trend_map[pv]:
-                trend_map[pv][cat] += total
+            target = period_map[pv]
+            if raw_category in ("feeder", "dt"):
+                target["total_burnt"] += burnt
+                target["total_faulty"] += faulty
+                target["total_others"] += others
+                target["total_defective"] += total
+            else:
+                key = _category_key(r[1], r[2])
+                if key:
+                    for b_name, b_val in (
+                        ("total_burnt", burnt),
+                        ("total_faulty", faulty),
+                        ("total_others", others),
+                        ("total_defective", total)
+                    ):
+                        if key in target[b_name]:
+                            target[b_name][key] += b_val
+                        target[b_name]["total"] += b_val
             
-            trend_map[pv]["burnt"] += burnt
-            trend_map[pv]["faulty"] += faulty
-            trend_map[pv]["others"] += others
-            
-        trend = sorted(list(trend_map.values()), key=lambda x: x.pop("sort_date"))
+        period_breakdown = sorted(list(period_map.values()), key=lambda x: x.pop("sort_date"))
         
         if level == "discom" and project == "all":
             group_expr = func.upper(func.trim(DefectiveMeters.project))
@@ -2299,46 +2910,50 @@ class SQLAlchemyMIRepository(IMIRepository):
                 
         cmp_rows = q.with_entities(
             group_expr.label("label"),
-            DefectiveMeters.meter_category,
-            func.sum(case((DefectiveMeters.defective_type == 'Meter Burnt', DefectiveMeters.meter_count), else_=0)),
-            func.sum(case((DefectiveMeters.defective_type == 'Meter Faulty', DefectiveMeters.meter_count), else_=0)),
-            func.sum(case((DefectiveMeters.defective_type == 'Others', DefectiveMeters.meter_count), else_=0))
-        ).group_by(group_expr, DefectiveMeters.meter_category).order_by("label").all()
+            *entities
+        ).group_by(group_expr, DefectiveMeters.meter_category, DefectiveMeters.new_meter_type).order_by("label").all()
         
         comp_map = {}
         for r in cmp_rows:
             label = str(r[0] or "Unknown").strip()
-            cat = str(r[1] or "UNKNOWN").upper()
-            burnt = int(r[2] or 0)
-            faulty = int(r[3] or 0)
-            others = int(r[4] or 0)
-            total_cat = burnt + faulty + others
+            burnt = int(r[3] or 0)
+            faulty = int(r[4] or 0)
+            others = int(r[5] or 0)
+            total = burnt + faulty + others
             
             if label not in comp_map:
                 comp_map[label] = {
                     "label": label,
-                    "CONSUMER": 0, "FEEDER": 0, "DT": 0,
-                    "burnt": 0, "faulty": 0, "others": 0,
-                    "total_defective": 0
+                    "total_defective": _empty_bucket(),
+                    "total_burnt": _empty_bucket(),
+                    "total_faulty": _empty_bucket(),
+                    "total_others": _empty_bucket()
                 }
             
-            if cat in comp_map[label]:
-                comp_map[label][cat] += total_cat
-                
-            comp_map[label]["burnt"] += burnt
-            comp_map[label]["faulty"] += faulty
-            comp_map[label]["others"] += others
-            comp_map[label]["total_defective"] += total_cat
+            target = comp_map[label]
+            if raw_category in ("feeder", "dt"):
+                target["total_burnt"] += burnt
+                target["total_faulty"] += faulty
+                target["total_others"] += others
+                target["total_defective"] += total
+            else:
+                key = _category_key(r[1], r[2])
+                if key:
+                    for b_name, b_val in (
+                        ("total_burnt", burnt),
+                        ("total_faulty", faulty),
+                        ("total_others", others),
+                        ("total_defective", total)
+                    ):
+                        if key in target[b_name]:
+                            target[b_name][key] += b_val
+                        target[b_name]["total"] += b_val
             
         comparison = list(comp_map.values())
 
         return {
-            "total_defective": int(sum(r[2]+r[3]+r[4] for r in c_rows) or 0),
-            "total_burnt": int(sum(r[2] for r in c_rows) or 0),
-            "total_faulty": int(sum(r[3] for r in c_rows) or 0),
-            "total_others": int(sum(r[4] for r in c_rows) or 0),
-            "category_breakdown": category_breakdown,
-            "trend": trend,
+            "summary": summary,
+            "period_breakdown": period_breakdown,
             "comparison": comparison
         }
 

@@ -160,6 +160,11 @@ class MeterCurrentStage(MIDimensionMixin, Base):
     installed = Column(BigInteger, nullable=False, default=0)
     sat_done = Column(BigInteger, nullable=False, default=0)
     revenue_collected = Column(BigInteger, nullable=False, default=0)
+    # "Pending PMPM collection" funnel — meters whose pmpm_collection_date IS NULL
+    pending_inventory = Column(BigInteger, nullable=False, default=0)
+    pending_installed = Column(BigInteger, nullable=False, default=0)
+    pending_sat_done = Column(BigInteger, nullable=False, default=0)
+    pending_invoice_done = Column(BigInteger, nullable=False, default=0)
 
 
 class DefectiveMeters(MIDimensionMixin, Base):
