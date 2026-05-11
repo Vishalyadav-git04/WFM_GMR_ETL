@@ -25,6 +25,7 @@ app.add_middleware(
     # Explicitly allow known frontend origins (safer for production)
     allow_origins=["https://gmr-en-i-i-analytics.gmrgroup.in",
         "http://gmr-analytics-dashboard.s3-website.ap-south-1.amazonaws.com",
+        "http://localhost:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
