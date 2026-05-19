@@ -526,11 +526,20 @@ Uses `to_date(period_value, 'DD-MM-YY')` for `start_date` / `end_date` compariso
 
 ### SAT Dashboard
 
-**Endpoint**: `GET /api/mi/command-center/{region}`  
+**Endpoints** (same ETL sources for all):
+
+| Endpoint | Returns |
+| :--- | :--- |
+| `GET /api/mi/sat-dash/satBlueData` | Object `kashi` / `agra` / `triveni` → each value is that project’s `satBlueData` array (empty array if no snapshot). |
+| `GET /api/mi/sat-dash/{region}` | JSON array (root): monthly `raw` only for `kashi`, `agra`, or `triveni`. |
+| `GET /api/mi/command-center/{region}` | Full combined payload: snapshot KPIs, `satBlueData`, `raw`, `sat_milestones` (backward compatible). |
+
 **Data Sources**:
 - `dashboard_command_center` — snapshot row per project
 - `dashboard_command_center_trend` — monthly trend (`period_type = 'monthly'`)
 - `dashboard_command_center_milestone` — SAT stage milestone dates
+
+**Repository**: `get_sat_dash_sat_blue_data`, `get_sat_dash_region_monthly`, `get_command_center_dashboard` in `sqlalchemy_mi_repo.py`.
 
 #### Snapshot Metrics
 
@@ -550,6 +559,8 @@ Last stage selection:
 #### Trend Data
 
 Per month: `received` = `inventory_added`, `installed` = `installed_added`, SAT = sum of `s1_added` through `s7_added` plus `s9_added` (AGRA) or `s8_added`.
+
+Monthly rows are returned in **chronological** order: the API orders by `to_date(trim(period_value), 'Mon-YY')` (ETL stores `Mon-YY` from `TO_CHAR`), with a `YYYY-MM` + `-01` branch when `length(trim(period_value)) = 7`, not by lexicographic `period_value`.
 
 #### Milestones
 
@@ -803,7 +814,7 @@ Applied on `closed_date` (`>= start_date`, `<= end_date`).
 | **KPI 12** | `/api/mi/revenue-realized/summary` | `sql_revenue_realized` | `SUM` of 4 revenue counters |
 | **KPI 13** | `/api/mi/revenue-ageing/summary` | `sql_revenue_ageing` | `SUM(age_0_30 + ... + age_90_plus)` |
 | **KPI 14** | `/api/mi/defective-meters/summary` | `sql_defective_meters` | `SUM(burnt + faulty + others)` |
-| **SAT** | `/api/mi/command-center/{region}` | `dashboard_command_center*` | Stored as-is from ETL |
+| **SAT** | `/api/mi/sat-dash/satBlueData`, `/api/mi/sat-dash/{region}`, `/api/mi/command-center/{region}` | `dashboard_command_center*` | Stored as-is from ETL |
 | **O&M-1** | `/api/om/productivity-team/dashboard` | `sql_om_team_productivity_dashboard` | `AVG(daily: tickets / distinct techs)` |
 | **O&M-2** | `/api/om/productivity-trend/dashboard` | `sql_om_team_productivity_dashboard` | `AVG(monthly AVG(daily prod))` |
 | **O&M-3** | `/api/om/open-ageing/dashboard` | `sql_om_open_ageing` | `(now - created_date) / 86400` into 7 buckets |

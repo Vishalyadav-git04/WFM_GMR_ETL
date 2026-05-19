@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, Query
-from typing import Optional, Dict, Any
+from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Optional, Dict, Any, List
 
 from infrastructure.database.setup import get_session
-from adapters.repository.sqlalchemy_mi_repo import SQLAlchemyMIRepository
+from adapters.repository.sqlalchemy_mi_repo import SQLAlchemyMIRepository, SAT_DASH_REGION_KEYS
 from usecases.mi.mi_usecase import MIUseCase
 from adapters.api.schemas import (
     InventoryUtilizationSummaryOut, PaceVsStockSummaryOut,
@@ -323,6 +323,38 @@ def get_command_center_dashboard(
     Returns the comprehensive Command Center Dashboard data structure for a given region (kashi, agra, triveni).
     """
     return mi_usecase.get_command_center_dashboard(region)
+
+
+@router.get("/sat-dash/satBlueData", summary="SAT dashboard — SAT stage cards for all regions")
+def get_sat_dash_sat_blue_data(mi_usecase: MIUseCase = Depends(get_mi_usecase)):
+    """
+    Returns an object with keys `kashi`, `agra`, `triveni`; each value is the `satBlueData`
+    array (SAT-1 … SAT-8 / SAT-9 for Agra) for that project. Missing snapshot rows yield `[]`.
+    """
+    return mi_usecase.get_sat_dash_sat_blue_data()
+
+
+@router.get(
+    "/sat-dash/{region}",
+    response_model=List[Dict[str, Any]],
+    summary="SAT dashboard — monthly time series for one region",
+)
+def get_sat_dash_region_monthly(
+    region: str,
+    mi_usecase: MIUseCase = Depends(get_mi_usecase),
+):
+    """
+    Returns the monthly `raw` array only: `month`, `received`, `installed`, and `sat`
+    (`s1`–`s7` plus `s8` or `s9` for Agra). Same shape as the `raw` field from
+    `GET /api/mi/command-center/{region}`.
+    """
+    r = (region or "").strip().lower()
+    if r not in SAT_DASH_REGION_KEYS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"region must be one of: {', '.join(SAT_DASH_REGION_KEYS)}",
+        )
+    return mi_usecase.get_sat_dash_region_monthly(r)
 
 
 @router.get("/mi-vs-sat-vs-invoice/summary", response_model=MIvsSATvsInvoiceSummaryOut, summary="Get MI vs SAT vs Invoice Funnel Summary")

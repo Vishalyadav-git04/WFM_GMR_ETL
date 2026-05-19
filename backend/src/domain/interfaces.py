@@ -43,6 +43,12 @@ class IMIRepository(ABC):
     @abstractmethod
     def get_command_center_dashboard(self, project: str) -> Dict[str, Any]: pass
 
+    @abstractmethod
+    def get_sat_dash_sat_blue_data(self) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def get_sat_dash_region_monthly(self, region: str) -> List[Dict[str, Any]]: pass
+
 class IOMRepository(ABC):
     @abstractmethod
     def get_productivity_team_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass

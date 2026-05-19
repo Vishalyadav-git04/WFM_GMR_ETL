@@ -41,6 +41,12 @@ class MIUseCase:
     def get_command_center_dashboard(self, project: str) -> Dict[str, Any]:
         return self.mi_repo.get_command_center_dashboard(project)
 
+    def get_sat_dash_sat_blue_data(self) -> Dict[str, Any]:
+        return self.mi_repo.get_sat_dash_sat_blue_data()
+
+    def get_sat_dash_region_monthly(self, region: str) -> List[Dict[str, Any]]:
+        return self.mi_repo.get_sat_dash_region_monthly(region)
+
     def get_mi_sat_invoice_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         return self.mi_repo.get_mi_sat_invoice_summary(filters)
 

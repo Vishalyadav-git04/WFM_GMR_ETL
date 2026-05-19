@@ -40,6 +40,9 @@ CONSUMER_SUB_KEYS = [
 ]
 CATEGORY_KEYS = ["CONSUMER", "FEEDER", "DT"]
 
+# SAT dashboard split endpoints (`/api/mi/sat-dash/*`) — canonical region keys (lowercase).
+SAT_DASH_REGION_KEYS = ("kashi", "agra", "triveni")
+
 
 class SQLAlchemyMIRepository(IMIRepository):
     def __init__(self, session: Session):
@@ -2218,15 +2221,144 @@ class SQLAlchemyMIRepository(IMIRepository):
     def save_inventory_utilization(self, entities: List[InventoryUtilizationEntity]):
         pass # To be implemented
 
+    @staticmethod
+    def _fmt_command_center_date(d) -> Optional[str]:
+        return d.strftime("%m/%d/%Y") if d else None
+
+    def _build_sat_milestones_map(self, milestones_db: List[Any]) -> Dict[str, Dict[str, Any]]:
+        sat_milestones: Dict[str, Dict[str, Any]] = {}
+        for m in milestones_db:
+            sat_milestones[m.stage] = {
+                "start": self._fmt_command_center_date(m.start_date),
+                "lumpsumInv": self._fmt_command_center_date(m.lumpsum_inv_date),
+                "pmpInv": self._fmt_command_center_date(m.pmpm_inv_date),
+                "lumpsumCol": self._fmt_command_center_date(m.lumpsum_col_date),
+                "scCol": self._fmt_command_center_date(m.pmpm_col_date),
+            }
+        return sat_milestones
+
+    def _build_sat_blue_data_list(
+        self,
+        snapshot: Any,
+        sat_milestones: Dict[str, Dict[str, Any]],
+        project_upper: str,
+    ) -> List[Dict[str, Any]]:
+        is_agra = project_upper == "AGRA"
+        last_stage = "SAT-9" if is_agra else "SAT-8"
+        last_ms_key = "s9" if is_agra else "s8"
+        return [
+            {
+                "stage": "SAT-1",
+                "installedBase": int(snapshot.sat_1_eligibility or 0),
+                "cumulativeSat": int(snapshot.sat_1_achievement or 0),
+                "efficiencyPct": float(snapshot.sat_1_throughput_pct or 0),
+                "startSAT": sat_milestones.get("s1", {}).get("start"),
+            },
+            {
+                "stage": "SAT-2",
+                "installedBase": int(snapshot.sat_2_eligibility or 0),
+                "cumulativeSat": int(snapshot.sat_2_achievement or 0),
+                "efficiencyPct": float(snapshot.sat_2_throughput_pct or 0),
+                "startSAT": sat_milestones.get("s2", {}).get("start"),
+            },
+            {
+                "stage": "SAT-3",
+                "installedBase": int(snapshot.sat_3_eligibility or 0),
+                "cumulativeSat": int(snapshot.sat_3_achievement or 0),
+                "efficiencyPct": float(snapshot.sat_3_throughput_pct or 0),
+                "startSAT": sat_milestones.get("s3", {}).get("start"),
+            },
+            {
+                "stage": "SAT-4",
+                "installedBase": int(snapshot.sat_4_eligibility or 0),
+                "cumulativeSat": int(snapshot.sat_4_achievement or 0),
+                "efficiencyPct": float(snapshot.sat_4_throughput_pct or 0),
+                "startSAT": sat_milestones.get("s4", {}).get("start"),
+            },
+            {
+                "stage": "SAT-5",
+                "installedBase": int(snapshot.sat_5_eligibility or 0),
+                "cumulativeSat": int(snapshot.sat_5_achievement or 0),
+                "efficiencyPct": float(snapshot.sat_5_throughput_pct or 0),
+                "startSAT": sat_milestones.get("s5", {}).get("start"),
+            },
+            {
+                "stage": "SAT-6",
+                "installedBase": int(snapshot.sat_6_eligibility or 0),
+                "cumulativeSat": int(snapshot.sat_6_achievement or 0),
+                "efficiencyPct": float(snapshot.sat_6_throughput_pct or 0),
+                "startSAT": sat_milestones.get("s6", {}).get("start"),
+            },
+            {
+                "stage": "SAT-7",
+                "installedBase": int(snapshot.sat_7_eligibility or 0),
+                "cumulativeSat": int(snapshot.sat_7_achievement or 0),
+                "efficiencyPct": float(snapshot.sat_7_throughput_pct or 0),
+                "startSAT": sat_milestones.get("s7", {}).get("start"),
+            },
+            {
+                "stage": last_stage,
+                "installedBase": int((snapshot.sat_9_eligibility if is_agra else snapshot.sat_8_eligibility) or 0),
+                "cumulativeSat": int((snapshot.sat_9_achievement if is_agra else snapshot.sat_8_achievement) or 0),
+                "efficiencyPct": float((snapshot.sat_9_throughput_pct if is_agra else snapshot.sat_8_throughput_pct) or 0),
+                "startSAT": sat_milestones.get(last_ms_key, {}).get("start"),
+            },
+        ]
+
+    def _build_monthly_raw_list(self, trends: List[Any], project_upper: str) -> List[Dict[str, Any]]:
+        is_agra = project_upper == "AGRA"
+        sat_stage_key = "s9" if is_agra else "s8"
+        raw: List[Dict[str, Any]] = []
+        for row in trends:
+            sat_stage_value = int((row.s9_added if is_agra else row.s8_added) or 0)
+            raw.append(
+                {
+                    "month": row.period_value,
+                    "received": int(row.inventory_added or 0),
+                    "installed": int(row.installed_added or 0),
+                    "sat": {
+                        "s1": int(row.s1_added or 0),
+                        "s2": int(row.s2_added or 0),
+                        "s3": int(row.s3_added or 0),
+                        "s4": int(row.s4_added or 0),
+                        "s5": int(row.s5_added or 0),
+                        "s6": int(row.s6_added or 0),
+                        "s7": int(row.s7_added or 0),
+                        sat_stage_key: sat_stage_value,
+                    },
+                }
+            )
+        return raw
+
+    @staticmethod
+    def _dashboard_command_center_monthly_sort_expr():
+        """
+        Chronological ORDER BY for command-center monthly trends. period_value is
+        typically 'Mon-YY' from ETL (TO_CHAR(..., 'Mon-YY')) — string sort is wrong
+        (e.g. Apr-25 before Aug-24). Parse to date for ordering.
+        """
+        m = DashboardCommandCenterTrend
+        pv = func.trim(m.period_value)
+        return case(
+            (func.length(pv) == 7, func.to_date(func.concat(pv, "-01"), "YYYY-MM-DD")),
+            else_=func.to_date(pv, "Mon-YY"),
+        )
+
     def get_command_center_dashboard(self, project: str) -> Dict[str, Any]:
         snapshot = self.session.query(DashboardCommandCenter).filter(
             DashboardCommandCenter.project.ilike(project)
         ).first()
 
-        trends = self.session.query(DashboardCommandCenterTrend).filter(
-            DashboardCommandCenterTrend.project.ilike(project),
-            DashboardCommandCenterTrend.period_type == 'monthly'
-        ).order_by(DashboardCommandCenterTrend.period_value.asc()).all()
+        sort_key = self._dashboard_command_center_monthly_sort_expr()
+        trends = (
+            self.session.query(DashboardCommandCenterTrend)
+            .filter(
+                DashboardCommandCenterTrend.project.ilike(project),
+                DashboardCommandCenterTrend.period_type == "monthly",
+            )
+            .order_by(sort_key.asc(), DashboardCommandCenterTrend.period_value.asc())
+            .all()
+        )
 
         milestones_db = self.session.query(DashboardCommandCenterMilestone).filter(
             DashboardCommandCenterMilestone.project.ilike(project)
@@ -2235,112 +2367,73 @@ class SQLAlchemyMIRepository(IMIRepository):
         if not snapshot:
             return {}
 
-        # 1. Structure satBlueData
-        def get_fmt_date(d):
-            return d.strftime('%m/%d/%Y') if d else None
-            
-        sat_milestones = {}
-        for m in milestones_db:
-            sat_milestones[m.stage] = {
-                "start": get_fmt_date(m.start_date),
-                "lumpsumInv": get_fmt_date(m.lumpsum_inv_date),
-                "pmpInv": get_fmt_date(m.pmpm_inv_date),
-                "lumpsumCol": get_fmt_date(m.lumpsum_col_date),
-                "scCol": get_fmt_date(m.pmpm_col_date)
-            }
-
-        satBlueData = [
-            {
-                "stage": "SAT-1", 
-                "installedBase": int(snapshot.sat_1_eligibility or 0),
-                "cumulativeSat": int(snapshot.sat_1_achievement or 0),
-                "efficiencyPct": float(snapshot.sat_1_throughput_pct or 0),
-                "startSAT": sat_milestones.get("s1", {}).get("start")
-            },
-            {
-                "stage": "SAT-2", 
-                "installedBase": int(snapshot.sat_2_eligibility or 0),
-                "cumulativeSat": int(snapshot.sat_2_achievement or 0),
-                "efficiencyPct": float(snapshot.sat_2_throughput_pct or 0),
-                "startSAT": sat_milestones.get("s2", {}).get("start")
-            },
-            {
-                "stage": "SAT-3", 
-                "installedBase": int(snapshot.sat_3_eligibility or 0),
-                "cumulativeSat": int(snapshot.sat_3_achievement or 0),
-                "efficiencyPct": float(snapshot.sat_3_throughput_pct or 0),
-                "startSAT": sat_milestones.get("s3", {}).get("start")
-            },
-            {
-                "stage": "SAT-4", 
-                "installedBase": int(snapshot.sat_4_eligibility or 0),
-                "cumulativeSat": int(snapshot.sat_4_achievement or 0),
-                "efficiencyPct": float(snapshot.sat_4_throughput_pct or 0),
-                "startSAT": sat_milestones.get("s4", {}).get("start")
-            },
-            {
-                "stage": "SAT-5", 
-                "installedBase": int(snapshot.sat_5_eligibility or 0),
-                "cumulativeSat": int(snapshot.sat_5_achievement or 0),
-                "efficiencyPct": float(snapshot.sat_5_throughput_pct or 0),
-                "startSAT": sat_milestones.get("s5", {}).get("start")
-            },
-            {
-                "stage": "SAT-6", 
-                "installedBase": int(snapshot.sat_6_eligibility or 0),
-                "cumulativeSat": int(snapshot.sat_6_achievement or 0),
-                "efficiencyPct": float(snapshot.sat_6_throughput_pct or 0),
-                "startSAT": sat_milestones.get("s6", {}).get("start")
-            },
-            {
-                "stage": "SAT-7", 
-                "installedBase": int(snapshot.sat_7_eligibility or 0),
-                "cumulativeSat": int(snapshot.sat_7_achievement or 0),
-                "efficiencyPct": float(snapshot.sat_7_throughput_pct or 0),
-                "startSAT": sat_milestones.get("s7", {}).get("start")
-            },
-            {
-                "stage": "SAT-9" if project.upper() == "AGRA" else "SAT-8", 
-                "installedBase": int((snapshot.sat_9_eligibility if project.upper() == "AGRA" else snapshot.sat_8_eligibility) or 0),
-                "cumulativeSat": int((snapshot.sat_9_achievement if project.upper() == "AGRA" else snapshot.sat_8_achievement) or 0),
-                "efficiencyPct": float((snapshot.sat_9_throughput_pct if project.upper() == "AGRA" else snapshot.sat_8_throughput_pct) or 0),
-                "startSAT": sat_milestones.get("s9" if project.upper() == "AGRA" else "s8", {}).get("start")
-            }
-        ]
-
-        # 2. Structure RAW
-        raw = []
-        for row in trends:
-            # Use the correct SAT stage key per region
-            sat_stage_key = "s9" if project.upper() == "AGRA" else "s8"
-            sat_stage_value = int((row.s9_added if project.upper() == "AGRA" else row.s8_added) or 0)
-            raw.append({
-                "month": row.period_value,
-                "received": int(row.inventory_added or 0),
-                "installed": int(row.installed_added or 0),
-                "sat": {
-                    "s1": int(row.s1_added or 0),
-                    "s2": int(row.s2_added or 0),
-                    "s3": int(row.s3_added or 0),
-                    "s4": int(row.s4_added or 0),
-                    "s5": int(row.s5_added or 0),
-                    "s6": int(row.s6_added or 0),
-                    "s7": int(row.s7_added or 0),
-                    sat_stage_key: sat_stage_value
-                }
-            })
+        project_upper = (project or "").strip().upper()
+        sat_milestones = self._build_sat_milestones_map(milestones_db)
+        sat_blue_data = self._build_sat_blue_data_list(snapshot, sat_milestones, project_upper)
+        raw = self._build_monthly_raw_list(trends, project_upper)
 
         return {
             "inventory": int(snapshot.inventory or 0),
             "installed": int(snapshot.installed or 0),
             "total_sat": int(snapshot.total_sat or 0),
             "total_invoice": int(snapshot.total_invoice or 0),
-            "region": project.upper(),
-            "satBlueData": satBlueData,
+            "region": project_upper,
+            "satBlueData": sat_blue_data,
             "raw": raw,
-            "sat_milestones": sat_milestones
+            "sat_milestones": sat_milestones,
         }
 
+    def get_sat_dash_sat_blue_data(self) -> Dict[str, Any]:
+        proj_key = func.lower(func.trim(DashboardCommandCenter.project))
+        snapshots = (
+            self.session.query(DashboardCommandCenter)
+            .filter(proj_key.in_(list(SAT_DASH_REGION_KEYS)))
+            .all()
+        )
+        snap_by_key: Dict[str, Any] = {}
+        for s in snapshots:
+            k = (s.project or "").strip().lower()
+            if k in SAT_DASH_REGION_KEYS:
+                snap_by_key[k] = s
+
+        ms_proj = func.lower(func.trim(DashboardCommandCenterMilestone.project))
+        milestones_all = (
+            self.session.query(DashboardCommandCenterMilestone)
+            .filter(ms_proj.in_(list(SAT_DASH_REGION_KEYS)))
+            .all()
+        )
+        milestones_by_key: Dict[str, List[Any]] = {rk: [] for rk in SAT_DASH_REGION_KEYS}
+        for m in milestones_all:
+            k = (m.project or "").strip().lower()
+            if k in SAT_DASH_REGION_KEYS:
+                milestones_by_key[k].append(m)
+
+        out: Dict[str, Any] = {}
+        for key in SAT_DASH_REGION_KEYS:
+            snap = snap_by_key.get(key)
+            if not snap:
+                out[key] = []
+                continue
+            p_upper = (snap.project or "").strip().upper()
+            sat_m = self._build_sat_milestones_map(milestones_by_key[key])
+            out[key] = self._build_sat_blue_data_list(snap, sat_m, p_upper)
+        return out
+
+    def get_sat_dash_region_monthly(self, region: str) -> List[Dict[str, Any]]:
+        r = (region or "").strip().lower()
+        if r not in SAT_DASH_REGION_KEYS:
+            return []
+        sort_key = self._dashboard_command_center_monthly_sort_expr()
+        trends = (
+            self.session.query(DashboardCommandCenterTrend)
+            .filter(
+                DashboardCommandCenterTrend.project.ilike(r),
+                DashboardCommandCenterTrend.period_type == "monthly",
+            )
+            .order_by(sort_key.asc(), DashboardCommandCenterTrend.period_value.asc())
+            .all()
+        )
+        return self._build_monthly_raw_list(trends, r.upper())
 
     def get_mi_sat_invoice_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """KPI 11: MI vs SAT vs Invoice funnel summary."""

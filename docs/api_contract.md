@@ -1712,11 +1712,19 @@ Tracks defective meters based on complaint data, with focus on **replaced meters
 
 Regional snapshot with SAT stage-wise eligibility, achievement, and throughput.
 
+#### `GET /api/mi/sat-dash/satBlueData`
+
+Returns SAT stage cards for **all** regions. Response is a JSON object with keys `kashi`, `agra`, `triveni`; each value is an array of stage rows (see `satBlueData` below). Missing snapshot → `[]` for that key.
+
+#### `GET /api/mi/sat-dash/{region}`
+
+**Path parameter**: `region` — one of `kashi`, `agra`, `triveni`. **Response**: JSON array at root — monthly `raw` rows only (`month`, `received`, `installed`, `sat`). **`400`** if `region` is invalid.
+
 #### `GET /api/mi/command-center/{region}`
 
 **Path Parameter**: `region` — one of `kashi`, `agra`, `triveni`.
 
-**Response**: A comprehensive JSON object with project-level SAT metrics. Refer to `/docs` for the full shape.
+**Response**: A comprehensive JSON object with project-level SAT metrics (full payload including `satBlueData`, `raw`, `sat_milestones`, and snapshot totals). Prefer `sat-dash` endpoints when splitting network calls.
 
 ---
 

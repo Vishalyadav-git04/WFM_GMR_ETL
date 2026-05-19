@@ -1591,15 +1591,46 @@ Tracks defective meters based on complaint data, focusing on **replaced meters o
 
 ---
 
-### SAT Dashboard (Per Region)
+### SAT Dashboard
 
-Regional snapshot with SAT stage-wise eligibility, achievement, and throughput.
+Regional SAT metrics: stage-wise snapshot (`satBlueData`), monthly throughput (`raw`), and optional combined payload. Preferred split for new clients is **`sat-dash`**; **`command-center`** remains for a single full response.
+
+#### `GET /api/mi/sat-dash/satBlueData`
+
+Returns SAT stage cards for **all** projects in one object.
+
+**Response**: JSON object with keys `kashi`, `agra`, `triveni` (lowercase, fixed order in payload). Each value is an **array** of eight stage rows with the same shape as `satBlueData` in the command-center response. If there is no snapshot row for a project, that key’s value is `[]`.
+
+Each stage row:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `stage` | string | `SAT-1` … `SAT-7`, then `SAT-9` for Agra or `SAT-8` for Kashi/Triveni |
+| `installedBase` | int | Stage eligibility |
+| `cumulativeSat` | int | Stage achievement |
+| `efficiencyPct` | float | Throughput % (from ETL) |
+| `startSAT` | string \| null | Milestone start date, `MM/DD/YYYY` |
+
+#### `GET /api/mi/sat-dash/{region}`
+
+**Path parameter**: `region` — one of `kashi`, `agra`, `triveni` (case-insensitive).
+
+**Errors**: `400` if `region` is not allowed.
+
+**Response**: JSON **array** at the root (monthly time series only — same as the `raw` field from command-center). Each element:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `month` | string | Period label from ETL |
+| `received` | int | `inventory_added` |
+| `installed` | int | `installed_added` |
+| `sat` | object | `s1` … `s7` plus **`s9`** for Agra or **`s8`** for Kashi/Triveni |
 
 #### `GET /api/mi/command-center/{region}`
 
-**Path Parameter**: `region` — one of `kashi`, `agra`, `triveni`.
+**Path parameter**: `region` — one of `kashi`, `agra`, `triveni`.
 
-**Response**: A comprehensive JSON object with project-level SAT metrics. Refer to `/docs` for the full shape.
+**Response**: Full dashboard object: `inventory`, `installed`, `total_sat`, `total_invoice`, `region`, `satBlueData`, `raw`, `sat_milestones`. Equivalent to calling the two `sat-dash` responses for that region plus snapshot totals and milestones in one payload.
 
 ---
 
