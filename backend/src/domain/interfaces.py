@@ -49,6 +49,18 @@ class IMIRepository(ABC):
     @abstractmethod
     def get_sat_dash_region_monthly(self, region: str) -> List[Dict[str, Any]]: pass
 
+    @abstractmethod
+    def get_mi_sat_invoice_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def get_revenue_realized_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def get_revenue_ageing_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
+    @abstractmethod
+    def get_defective_meters_summary(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass
+
 class IOMRepository(ABC):
     @abstractmethod
     def get_productivity_team_dashboard(self, filters: Dict[str, Any]) -> Dict[str, Any]: pass

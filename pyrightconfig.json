@@ -3,9 +3,13 @@
   "venv": "venv",
   "executionEnvironments": [
     {
-      "root": "./src",
-      "extraPaths": ["./src", "./backend/src", "./etl/src"]
+      "root": "backend/src",
+      "extraPaths": ["backend/src"]
+    },
+    {
+      "root": "etl/src",
+      "extraPaths": ["etl/src"]
     }
   ],
-  "include": ["src", "backend/src", "etl/src"]
+  "include": ["backend/src", "etl/src"]
 }
